@@ -19,13 +19,22 @@ export default function ProviderEditor({ provider }: Props) {
   const [form, setForm] = useState({
     first_name:               provider.first_name,
     last_name:                provider.last_name,
+    middle_name:              provider.middle_name ?? '',
+    credential_suffix:        provider.credential_suffix ?? '',
     npi:                      provider.npi ?? '',
     email:                    provider.email ?? '',
+    phone:                    provider.phone ?? '',
+    ssn:                      provider.ssn ?? '',
+    provider_tax_id:          provider.provider_tax_id ?? '',
     date_of_birth:            provider.date_of_birth ?? '',
     gender:                   provider.gender ?? '',
     accepting_new_patients:   provider.accepting_new_patients ?? true,
     specialty:                provider.specialty ?? '',
+    secondary_specialty:      provider.secondary_specialty ?? '',
     taxonomy_code:            provider.taxonomy_code ?? '',
+    is_pcp:                   provider.is_pcp ?? false,
+    languages:                provider.languages ?? '',
+    hospital_affiliation:     provider.hospital_affiliation ?? '',
     license_number:           provider.license_number ?? '',
     license_state:            provider.license_state ?? '',
     license_expiration:       provider.license_expiration ?? '',
@@ -76,13 +85,22 @@ export default function ProviderEditor({ provider }: Props) {
     const { error: saveError } = await supabase.from('providers').update({
       first_name:               form.first_name,
       last_name:                form.last_name,
+      middle_name:              toNull(form.middle_name),
+      credential_suffix:        toNull(form.credential_suffix),
       npi:                      toNull(form.npi),
       email:                    toNull(form.email),
+      phone:                    toNull(form.phone),
+      ssn:                      toNull(form.ssn),
+      provider_tax_id:          toNull(form.provider_tax_id),
       date_of_birth:            toNull(form.date_of_birth),
       gender:                   toNull(form.gender),
       accepting_new_patients:   form.accepting_new_patients,
       specialty:                toNull(form.specialty),
+      secondary_specialty:      toNull(form.secondary_specialty),
       taxonomy_code:            toNull(form.taxonomy_code),
+      is_pcp:                   form.is_pcp,
+      languages:                toNull(form.languages),
+      hospital_affiliation:     toNull(form.hospital_affiliation),
       license_number:           toNull(form.license_number),
       license_state:            toNull(form.license_state),
       license_expiration:       toNull(form.license_expiration),
@@ -137,14 +155,14 @@ export default function ProviderEditor({ provider }: Props) {
         </div>
         <div className="form-row form-row-2">
           <div className="form-field">
-            <label className="form-label">NPI Number</label>
-            <input className="form-input" value={form.npi}
-              onChange={(e) => set('npi', e.target.value)} placeholder="10-digit NPI" />
+            <label className="form-label">Middle Name / Initial</label>
+            <input className="form-input" value={form.middle_name}
+              onChange={(e) => set('middle_name', e.target.value)} placeholder="Middle" />
           </div>
           <div className="form-field">
-            <label className="form-label">Email</label>
-            <input className="form-input" type="email" value={form.email}
-              onChange={(e) => set('email', e.target.value)} placeholder="provider@example.com" />
+            <label className="form-label">Credential Suffix</label>
+            <input className="form-input" value={form.credential_suffix}
+              onChange={(e) => set('credential_suffix', e.target.value)} placeholder="MD, DO, NP, PA…" />
           </div>
         </div>
         <div className="form-row form-row-2">
@@ -164,6 +182,18 @@ export default function ProviderEditor({ provider }: Props) {
             </select>
           </div>
         </div>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" value={form.email}
+              onChange={(e) => set('email', e.target.value)} placeholder="provider@example.com" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Phone</label>
+            <input className="form-input" type="tel" value={form.phone}
+              onChange={(e) => set('phone', e.target.value)} placeholder="(555) 000-0000" />
+          </div>
+        </div>
         <div className="form-field" style={{ marginBottom: 0 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.accepting_new_patients}
@@ -174,19 +204,66 @@ export default function ProviderEditor({ provider }: Props) {
         </div>
       </div>
 
+      {/* ── Sensitive Identifiers ─────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Sensitive Identifiers</p>
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', marginTop: '-4px' }}>
+          Stored securely. Restrict access as appropriate for your organization.
+        </p>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Social Security Number (SSN)</label>
+            <input className="form-input" value={form.ssn}
+              onChange={(e) => set('ssn', e.target.value)} placeholder="XXX-XX-XXXX" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Provider Tax ID</label>
+            <input className="form-input" value={form.provider_tax_id}
+              onChange={(e) => set('provider_tax_id', e.target.value)} placeholder="Individual EIN or SSN for billing" />
+          </div>
+        </div>
+      </div>
+
       {/* ── Practice ─────────────────────────────────────── */}
       <div className="card-lg" style={{ marginBottom: '12px' }}>
         <p className="section-label">Practice</p>
         <div className="form-row form-row-2">
           <div className="form-field">
-            <label className="form-label">Specialty</label>
+            <label className="form-label">Primary Specialty</label>
             <input className="form-input" value={form.specialty}
               onChange={(e) => set('specialty', e.target.value)} placeholder="e.g. Internal Medicine" />
           </div>
           <div className="form-field">
+            <label className="form-label">Secondary Specialty</label>
+            <input className="form-input" value={form.secondary_specialty}
+              onChange={(e) => set('secondary_specialty', e.target.value)} placeholder="e.g. Geriatrics" />
+          </div>
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field">
             <label className="form-label">Taxonomy Code</label>
             <input className="form-input" value={form.taxonomy_code}
               onChange={(e) => set('taxonomy_code', e.target.value)} placeholder="10-digit NUCC code" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Languages Spoken</label>
+            <input className="form-input" value={form.languages}
+              onChange={(e) => set('languages', e.target.value)} placeholder="e.g. English, Spanish" />
+          </div>
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Hospital Affiliation</label>
+            <input className="form-input" value={form.hospital_affiliation}
+              onChange={(e) => set('hospital_affiliation', e.target.value)} placeholder="Primary hospital name" />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginTop: '22px' }}>
+              <input type="checkbox" checked={form.is_pcp}
+                onChange={(e) => set('is_pcp', e.target.checked)}
+                style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
+              <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Primary Care Provider (PCP)</span>
+            </label>
           </div>
         </div>
       </div>
@@ -194,6 +271,18 @@ export default function ProviderEditor({ provider }: Props) {
       {/* ── License & Credentials ────────────────────────── */}
       <div className="card-lg" style={{ marginBottom: '12px' }}>
         <p className="section-label">License &amp; Credentials</p>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">NPI Number</label>
+            <input className="form-input" value={form.npi}
+              onChange={(e) => set('npi', e.target.value)} placeholder="10-digit NPI" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">DEA Number</label>
+            <input className="form-input" value={form.dea_number}
+              onChange={(e) => set('dea_number', e.target.value)} placeholder="DEA registration number" />
+          </div>
+        </div>
         <div className="form-row form-row-2" style={{ marginBottom: '0' }}>
           <div className="form-field">
             <label className="form-label">License Number</label>
@@ -215,11 +304,7 @@ export default function ProviderEditor({ provider }: Props) {
             <input className="form-input" type="date" value={form.license_expiration}
               onChange={(e) => set('license_expiration', e.target.value)} />
           </div>
-          <div className="form-field">
-            <label className="form-label">DEA Number</label>
-            <input className="form-input" value={form.dea_number}
-              onChange={(e) => set('dea_number', e.target.value)} placeholder="DEA registration number" />
-          </div>
+          <div />
         </div>
         <div className="form-row form-row-2">
           <div className="form-field">

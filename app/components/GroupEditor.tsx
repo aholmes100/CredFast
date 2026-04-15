@@ -10,19 +10,31 @@ interface Props {
 
 export default function GroupEditor({ group }: Props) {
   const [form, setForm] = useState({
-    name:                       group.name,
-    legal_name:                 group.legal_name ?? '',
-    tax_id:                     group.tax_id ?? '',
-    group_npi:                  group.group_npi ?? '',
-    taxonomy_code:              group.taxonomy_code ?? '',
-    medicaid_group_number:      group.medicaid_group_number ?? '',
-    medicare_group_number:      group.medicare_group_number ?? '',
-    practice_type:              group.practice_type ?? '',
-    authorized_official_name:   group.authorized_official_name ?? '',
-    authorized_official_title:  group.authorized_official_title ?? '',
-    authorized_official_phone:  group.authorized_official_phone ?? '',
-    authorized_official_email:  group.authorized_official_email ?? '',
-    notes:                      group.notes ?? '',
+    name:                           group.name,
+    legal_name:                     group.legal_name ?? '',
+    tax_id:                         group.tax_id ?? '',
+    group_npi:                      group.group_npi ?? '',
+    taxonomy_code:                  group.taxonomy_code ?? '',
+    medicaid_group_number:          group.medicaid_group_number ?? '',
+    medicare_group_number:          group.medicare_group_number ?? '',
+    practice_type:                  group.practice_type ?? '',
+    authorized_official_name:       group.authorized_official_name ?? '',
+    authorized_official_title:      group.authorized_official_title ?? '',
+    authorized_official_phone:      group.authorized_official_phone ?? '',
+    authorized_official_email:      group.authorized_official_email ?? '',
+    credentialing_contact_name:     group.credentialing_contact_name ?? '',
+    credentialing_contact_email:    group.credentialing_contact_email ?? '',
+    credentialing_contact_phone:    group.credentialing_contact_phone ?? '',
+    credentialing_contact_fax:      group.credentialing_contact_fax ?? '',
+    billing_name:                   group.billing_name ?? '',
+    billing_address_1:              group.billing_address_1 ?? '',
+    billing_address_2:              group.billing_address_2 ?? '',
+    billing_city:                   group.billing_city ?? '',
+    billing_state:                  group.billing_state ?? '',
+    billing_zip:                    group.billing_zip ?? '',
+    billing_phone:                  group.billing_phone ?? '',
+    billing_fax:                    group.billing_fax ?? '',
+    notes:                          group.notes ?? '',
   })
 
   const [saving, setSaving]       = useState(false)
@@ -47,20 +59,32 @@ export default function GroupEditor({ group }: Props) {
     const toNull = (v: string) => v.trim() || null
 
     const { error: saveError } = await supabase.from('groups').update({
-      name:                       form.name,
-      legal_name:                 toNull(form.legal_name),
-      tax_id:                     toNull(form.tax_id),
-      group_npi:                  toNull(form.group_npi),
-      taxonomy_code:              toNull(form.taxonomy_code),
-      medicaid_group_number:      toNull(form.medicaid_group_number),
-      medicare_group_number:      toNull(form.medicare_group_number),
-      practice_type:              toNull(form.practice_type),
-      authorized_official_name:   toNull(form.authorized_official_name),
-      authorized_official_title:  toNull(form.authorized_official_title),
-      authorized_official_phone:  toNull(form.authorized_official_phone),
-      authorized_official_email:  toNull(form.authorized_official_email),
-      notes:                      toNull(form.notes),
-      updated_at:                 new Date().toISOString(),
+      name:                           form.name,
+      legal_name:                     toNull(form.legal_name),
+      tax_id:                         toNull(form.tax_id),
+      group_npi:                      toNull(form.group_npi),
+      taxonomy_code:                  toNull(form.taxonomy_code),
+      medicaid_group_number:          toNull(form.medicaid_group_number),
+      medicare_group_number:          toNull(form.medicare_group_number),
+      practice_type:                  toNull(form.practice_type),
+      authorized_official_name:       toNull(form.authorized_official_name),
+      authorized_official_title:      toNull(form.authorized_official_title),
+      authorized_official_phone:      toNull(form.authorized_official_phone),
+      authorized_official_email:      toNull(form.authorized_official_email),
+      credentialing_contact_name:     toNull(form.credentialing_contact_name),
+      credentialing_contact_email:    toNull(form.credentialing_contact_email),
+      credentialing_contact_phone:    toNull(form.credentialing_contact_phone),
+      credentialing_contact_fax:      toNull(form.credentialing_contact_fax),
+      billing_name:                   toNull(form.billing_name),
+      billing_address_1:              toNull(form.billing_address_1),
+      billing_address_2:              toNull(form.billing_address_2),
+      billing_city:                   toNull(form.billing_city),
+      billing_state:                  toNull(form.billing_state),
+      billing_zip:                    toNull(form.billing_zip),
+      billing_phone:                  toNull(form.billing_phone),
+      billing_fax:                    toNull(form.billing_fax),
+      notes:                          toNull(form.notes),
+      updated_at:                     new Date().toISOString(),
     }).eq('id', group.id)
 
     setSaving(false)
@@ -163,6 +187,92 @@ export default function GroupEditor({ group }: Props) {
             <label className="form-label">Email</label>
             <input className="form-input" type="email" value={form.authorized_official_email}
               onChange={(e) => set('authorized_official_email', e.target.value)} placeholder="official@group.com" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Credentialing Contact ────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Credentialing Contact</p>
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', marginTop: '-4px' }}>
+          The person payers and credentialing bodies should contact. May differ from the authorized official.
+        </p>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Name</label>
+            <input className="form-input" value={form.credentialing_contact_name}
+              onChange={(e) => set('credentialing_contact_name', e.target.value)} placeholder="Full name" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Email</label>
+            <input className="form-input" type="email" value={form.credentialing_contact_email}
+              onChange={(e) => set('credentialing_contact_email', e.target.value)} placeholder="credentialing@group.com" />
+          </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Phone</label>
+            <input className="form-input" type="tel" value={form.credentialing_contact_phone}
+              onChange={(e) => set('credentialing_contact_phone', e.target.value)} placeholder="(555) 000-0000" />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Fax</label>
+            <input className="form-input" type="tel" value={form.credentialing_contact_fax}
+              onChange={(e) => set('credentialing_contact_fax', e.target.value)} placeholder="(555) 000-0000" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Billing Address ──────────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Billing Address</p>
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', marginTop: '-4px' }}>
+          Leave blank if billing address is the same as the service location address.
+        </p>
+        <div className="form-field">
+          <label className="form-label">Billing Entity Name</label>
+          <input className="form-input" value={form.billing_name}
+            onChange={(e) => set('billing_name', e.target.value)} placeholder="If different from group name" />
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Address Line 1</label>
+            <input className="form-input" value={form.billing_address_1}
+              onChange={(e) => set('billing_address_1', e.target.value)} placeholder="123 Main St" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Address Line 2</label>
+            <input className="form-input" value={form.billing_address_2}
+              onChange={(e) => set('billing_address_2', e.target.value)} placeholder="Suite 100" />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px', gap: '10px' }}>
+          <div className="form-field">
+            <label className="form-label">City</label>
+            <input className="form-input" value={form.billing_city}
+              onChange={(e) => set('billing_city', e.target.value)} placeholder="City" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">State</label>
+            <input className="form-input" value={form.billing_state}
+              onChange={(e) => set('billing_state', e.target.value)} placeholder="TX" maxLength={2} />
+          </div>
+          <div className="form-field">
+            <label className="form-label">ZIP</label>
+            <input className="form-input" value={form.billing_zip}
+              onChange={(e) => set('billing_zip', e.target.value)} placeholder="78701" />
+          </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Billing Phone</label>
+            <input className="form-input" type="tel" value={form.billing_phone}
+              onChange={(e) => set('billing_phone', e.target.value)} placeholder="(555) 000-0000" />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Billing Fax</label>
+            <input className="form-input" type="tel" value={form.billing_fax}
+              onChange={(e) => set('billing_fax', e.target.value)} placeholder="(555) 000-0000" />
           </div>
         </div>
       </div>

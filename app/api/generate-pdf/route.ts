@@ -4,10 +4,40 @@ import { supabase } from '../../lib/supabase'
 import type { PdfFillPayload, Provider, Group, Location, EnrollmentApplication } from '../../types'
 
 // ─── Resolve a data path like "provider.npi" against the payload ──────────────
+// Supports computed / virtual paths in addition to raw DB columns:
+//
+//   provider.full_name                  → "First [MI] Last[, Suffix]"
+//   provider.middle_initial             → first character of middle_name
+//   provider.is_pcp_yes                 → "X" when is_pcp is true, else ""
+//   provider.is_pcp_no                  → "X" when is_pcp is false, else ""
+//   provider.accepting_new_patients_yes → "X" when accepting_new_patients is true
+//   provider.accepting_new_patients_no  → "X" when accepting_new_patients is false
+//
+// For plain boolean columns the fallback returns "Yes" / "No".
 function resolvePath(path: string, payload: PdfFillPayload): string {
   const [prefix, ...rest] = path.split('.')
   const field = rest.join('.')
 
+  // ── Computed provider paths ────────────────────────────────────────────────
+  if (prefix === 'provider') {
+    const p = payload.provider
+    if (field === 'full_name') {
+      const parts: string[] = [p.first_name]
+      if (p.middle_name) parts.push(p.middle_name.charAt(0).toUpperCase() + '.')
+      parts.push(p.last_name)
+      const base = parts.join(' ')
+      return p.credential_suffix ? `${base}, ${p.credential_suffix}` : base
+    }
+    if (field === 'middle_initial') {
+      return p.middle_name ? p.middle_name.charAt(0).toUpperCase() + '.' : ''
+    }
+    if (field === 'is_pcp_yes')                  return p.is_pcp === true  ? 'X' : ''
+    if (field === 'is_pcp_no')                   return p.is_pcp !== true  ? 'X' : ''
+    if (field === 'accepting_new_patients_yes')   return p.accepting_new_patients === true  ? 'X' : ''
+    if (field === 'accepting_new_patients_no')    return p.accepting_new_patients !== true  ? 'X' : ''
+  }
+
+  // ── Raw column lookup ──────────────────────────────────────────────────────
   let source: Record<string, unknown> | null = null
   if (prefix === 'provider')         source = payload.provider    as unknown as Record<string, unknown>
   else if (prefix === 'group')       source = payload.group       as unknown as Record<string, unknown>

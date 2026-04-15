@@ -9,15 +9,24 @@ export interface Provider {
   id: string
   first_name: string
   last_name: string
+  middle_name: string | null
+  credential_suffix: string | null    // MD, DO, NP, PA, etc.
   npi: string | null
   email: string | null
+  phone: string | null
+  ssn: string | null                  // full SSN
+  provider_tax_id: string | null      // individual tax ID (distinct from group EIN)
   // Identity
   date_of_birth: string | null        // ISO date string
   gender: string | null
   // Practice
   specialty: string | null
+  secondary_specialty: string | null
   taxonomy_code: string | null
   accepting_new_patients: boolean | null
+  is_pcp: boolean | null
+  languages: string | null
+  hospital_affiliation: string | null
   // Identifiers
   license_number: string | null
   license_state: string | null
@@ -63,6 +72,20 @@ export interface Group {
   authorized_official_title: string | null
   authorized_official_phone: string | null
   authorized_official_email: string | null
+  // Credentialing contact (may differ from authorized official)
+  credentialing_contact_name: string | null
+  credentialing_contact_email: string | null
+  credentialing_contact_phone: string | null
+  credentialing_contact_fax: string | null
+  // Billing address (may differ from service address)
+  billing_name: string | null
+  billing_address_1: string | null
+  billing_address_2: string | null
+  billing_city: string | null
+  billing_state: string | null
+  billing_zip: string | null
+  billing_phone: string | null
+  billing_fax: string | null
   notes: string | null
   created_at: string
   updated_at: string | null
@@ -87,6 +110,12 @@ export interface Location {
   accepts_medicare: boolean | null
   hours_mon_fri: string | null
   hours_weekend: string | null
+  // Mailing address (may differ from physical/service address)
+  mailing_address_1: string | null
+  mailing_address_2: string | null
+  mailing_city: string | null
+  mailing_state: string | null
+  mailing_zip: string | null
   is_active: boolean
   notes: string | null
   created_at: string
@@ -98,7 +127,9 @@ export interface Payer {
   name: string
   payer_id_code: string | null
   enrollment_phone: string | null
+  enrollment_fax: string | null
   enrollment_address: string | null
+  enrollment_url: string | null
   processing_days: number | null
   notes: string | null
   created_at: string

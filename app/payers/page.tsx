@@ -17,21 +17,24 @@ export default async function PayersPage() {
     )
   }
 
+  const list = (payers ?? []) as Payer[]
+
   return (
     <main className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Payers</h1>
-          <p className="page-subtitle">Insurance payers and enrollment contacts</p>
+          <p className="page-subtitle">{list.length} payer{list.length !== 1 ? 's' : ''} on file</p>
         </div>
+        <Link href="/payers/new" className="btn btn-primary">+ New Payer</Link>
       </div>
 
-      {payers?.length ? (
+      {list.length ? (
         <div className="card-list">
-          {payers.map((payer: Payer) => (
+          {list.map((payer) => (
             <div key={payer.id} className="card">
               <div className="card-row">
-                <div>
+                <Link href={`/payers/${payer.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}>
                   <div className="card-title">{payer.name}</div>
                   <div className="card-meta" style={{ marginTop: '6px' }}>
                     {payer.payer_id_code && (
@@ -44,8 +47,8 @@ export default async function PayersPage() {
                       <span className="card-meta-item">{payer.enrollment_phone}</span>
                     )}
                   </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                </Link>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <Link href={`/payer-forms?payer=${payer.id}`} className="btn btn-secondary btn-sm">
                     Forms
                   </Link>
@@ -57,7 +60,7 @@ export default async function PayersPage() {
         </div>
       ) : (
         <div className="empty-state">
-          No payers found. Run the migration SQL to seed common payers.
+          No payers yet. <Link href="/payers/new">Add the first one.</Link>
         </div>
       )}
     </main>

@@ -32,11 +32,14 @@ export default async function LocationsPage() {
           {locations.map((location: LocationWithGroup) => (
             <div key={location.id} className="card">
               <div className="card-row">
-                <div>
+                <Link href={`/locations/${location.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div className="card-title">{location.name}</div>
                     {location.groups?.name && (
                       <span className="pill">{location.groups.name}</span>
+                    )}
+                    {!location.is_active && (
+                      <span className="pill" style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}>Inactive</span>
                     )}
                   </div>
                   {location.address_1 && (
@@ -53,7 +56,7 @@ export default async function LocationsPage() {
                       {location.fax   && <span className="card-meta-item">Fax: {location.fax}</span>}
                     </div>
                   )}
-                </div>
+                </Link>
                 <DeleteRowButton table="locations" id={location.id} label="location" />
               </div>
             </div>
