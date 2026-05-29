@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
+import EmptyState from '../components/EmptyState'
 
 type EntityType = 'provider' | 'group' | 'location' | 'payer' | 'application'
 
@@ -231,13 +232,11 @@ export default async function DocumentsPage() {
       )}
 
       {allDocs.length === 0 && tableExists && (
-        <div className="empty-state">
-          No documents on file yet.
-          <br />
-          <span style={{ fontSize: '12px', display: 'block', marginTop: '8px' }}>
-            Documents can be attached to providers, groups, locations, payers, and applications once uploaded.
-          </span>
-        </div>
+        <EmptyState
+          icon="🗂️"
+          headline="No documents yet"
+          context="Store and organize supporting documents like licenses, malpractice certificates, and DEA certificates."
+        />
       )}
 
       {/* Quick links */}

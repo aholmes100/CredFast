@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { ApplicationWithRelations, ApplicationStatus } from '../types'
 import ApplicationList from '../components/ApplicationList'
+import EmptyState from '../components/EmptyState'
 
 const STATUS_CONFIG: Record<ApplicationStatus, { label: string; color: string }> = {
   draft:     { label: 'Draft',     color: '#64748b' },
@@ -49,7 +50,16 @@ export default async function ApplicationsPage() {
         <Link href="/applications/new" className="btn btn-primary">+ New Application</Link>
       </div>
 
-      <ApplicationList apps={apps} />
+      {apps.length > 0 ? (
+        <ApplicationList apps={apps} />
+      ) : (
+        <EmptyState
+          icon="📋"
+          headline="No enrollment applications yet"
+          context="Applications track the status of each provider's enrollment with a specific payer and location."
+          action={{ label: 'New Application', href: '/applications/new' }}
+        />
+      )}
     </main>
   )
 }

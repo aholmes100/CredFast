@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { Provider } from '../types'
 import ProviderList from '../components/ProviderList'
+import EmptyState from '../components/EmptyState'
 
 export default async function ProvidersPage() {
   const supabase = await createClient()
@@ -30,7 +31,16 @@ export default async function ProvidersPage() {
         <Link href="/providers/new" className="btn btn-primary">+ New Provider</Link>
       </div>
 
-      <ProviderList providers={list} />
+      {list.length > 0 ? (
+        <ProviderList providers={list} />
+      ) : (
+        <EmptyState
+          icon="👤"
+          headline="No providers yet"
+          context="Add your first provider to start managing their credentialing and enrollment applications."
+          action={{ label: 'Add Provider', href: '/providers/new' }}
+        />
+      )}
     </main>
   )
 }

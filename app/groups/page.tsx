@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { Group } from '../types'
 import GroupList from '../components/GroupList'
+import EmptyState from '../components/EmptyState'
 
 export default async function GroupsPage() {
   const supabase = await createClient()
@@ -30,7 +31,16 @@ export default async function GroupsPage() {
         <Link href="/groups/new" className="btn btn-primary">+ New Group</Link>
       </div>
 
-      <GroupList groups={list} />
+      {list.length > 0 ? (
+        <GroupList groups={list} />
+      ) : (
+        <EmptyState
+          icon="🏥"
+          headline="No groups yet"
+          context="Groups represent the medical practices or organizations your providers are enrolled under."
+          action={{ label: 'Add Group', href: '/groups/new' }}
+        />
+      )}
     </main>
   )
 }

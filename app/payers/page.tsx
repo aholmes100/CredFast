@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { Payer } from '../types'
 import PayerList from '../components/PayerList'
+import EmptyState from '../components/EmptyState'
 
 export default async function PayersPage() {
   const supabase = await createClient()
@@ -30,7 +31,16 @@ export default async function PayersPage() {
         <Link href="/payers/new" className="btn btn-primary">+ New Payer</Link>
       </div>
 
-      <PayerList payers={list} />
+      {list.length > 0 ? (
+        <PayerList payers={list} />
+      ) : (
+        <EmptyState
+          icon="🏦"
+          headline="No payers yet"
+          context="Payers are the insurance companies your providers need to enroll with to receive reimbursement."
+          action={{ label: 'Add Payer', href: '/payers/new' }}
+        />
+      )}
     </main>
   )
 }

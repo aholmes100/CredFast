@@ -84,6 +84,41 @@ export default async function HomePage() {
       {/* ── Expiration banner ─────────────────────────────── */}
       <ExpirationBanner alerts={alerts} />
 
+      {/* ── Getting started (new orgs only) ───────────────── */}
+      {(providerCount ?? 0) === 0 && (appCount ?? 0) === 0 && (
+        <div style={{
+          marginBottom: '24px',
+          borderRadius: '12px',
+          border: '1px solid #e0e7ff',
+          backgroundColor: '#f5f3ff',
+          padding: '24px 28px',
+        }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            Welcome to CredFast
+          </div>
+          <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
+            Get set up in a few steps
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {[
+              { href: '/providers/new',   label: 'Add your first provider' },
+              { href: '/groups/new',      label: 'Add a group' },
+              { href: '/locations/new',   label: 'Add a location' },
+              { href: '/payer-forms/new', label: 'Upload a payer form' },
+              { href: '/applications/new',label: 'Create your first application' },
+            ].map(({ href, label }) => (
+              <Link key={href} href={href} style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                fontSize: '13px', fontWeight: 500, color: '#4f46e5', textDecoration: 'none',
+              }}>
+                <span style={{ color: '#a5b4fc', fontWeight: 700 }}>✦</span>
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Stats row ─────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '28px' }}>
         {[

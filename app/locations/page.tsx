@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { LocationWithGroup } from '../types'
 import LocationList from '../components/LocationList'
+import EmptyState from '../components/EmptyState'
 
 export default async function LocationsPage() {
   const supabase = await createClient()
@@ -30,7 +31,16 @@ export default async function LocationsPage() {
         <Link href="/locations/new" className="btn btn-primary">+ New Location</Link>
       </div>
 
-      <LocationList locations={list} />
+      {list.length > 0 ? (
+        <LocationList locations={list} />
+      ) : (
+        <EmptyState
+          icon="📍"
+          headline="No locations yet"
+          context="Locations are the physical practice sites where providers see patients and bill insurance."
+          action={{ label: 'Add Location', href: '/locations/new' }}
+        />
+      )}
     </main>
   )
 }

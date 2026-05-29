@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { PayerFormWithPayer } from '../types'
+import EmptyState from '../components/EmptyState'
 
 export default async function PayerFormsPage() {
   const supabase = await createClient()
@@ -57,9 +58,12 @@ export default async function PayerFormsPage() {
           ))}
         </div>
       ) : (
-        <div className="empty-state">
-          No forms yet. <Link href="/payer-forms/new">Add the first template.</Link>
-        </div>
+        <EmptyState
+          icon="📄"
+          headline="No payer forms yet"
+          context="Upload payer application PDFs and map their fields once — CredFast will auto-fill them for every application."
+          action={{ label: 'Upload Payer Form', href: '/payer-forms/new' }}
+        />
       )}
     </main>
   )
