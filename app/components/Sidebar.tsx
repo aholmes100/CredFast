@@ -120,6 +120,32 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* Settings */}
+      <div style={{ padding: '8px 8px 4px', borderTop: '1px solid #e2e8f0' }}>
+        {(() => {
+          const isActive = pathname.startsWith('/settings')
+          return (
+            <Link
+              href="/settings"
+              style={{
+                display: 'block',
+                padding: '7px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? '#4f46e5' : '#475569',
+                backgroundColor: isActive ? '#eef2ff' : 'transparent',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#0f172a' } }}
+              onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#475569' } }}
+            >
+              ⚙️ Settings
+            </Link>
+          )
+        })()}
+      </div>
+
       {/* Footer */}
       <div style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
         <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>Pollux Internal</div>
