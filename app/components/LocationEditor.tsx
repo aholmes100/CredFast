@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Location, LocationMode } from '../types'
 
-interface AvailableLocation extends Pick<Location, 'id' | 'name' | 'address_1' | 'city' | 'state'> {}
+type AvailableLocation = Pick<Location, 'id' | 'name' | 'address_1' | 'city' | 'state'>
 
 interface Props {
   applicationId: string

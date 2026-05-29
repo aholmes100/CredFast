@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useOrganizationId } from '../lib/use-organization-id'
 import type { ApplicationStatus } from '../types'
 
 const PIPELINE: { value: ApplicationStatus; label: string }[] = [
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function StatusUpdater({ applicationId, currentStatus }: Props) {
+  const orgId = useOrganizationId()
   const [status, setStatus] = useState<ApplicationStatus>(currentStatus)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +43,16 @@ export default function StatusUpdater({ applicationId, currentStatus }: Props) {
     if (updateError) {
       setError('Failed to update status.')
     } else {
+      if (orgId) {
+        await supabase.from('application_activity_log').insert({
+          enrollment_application_id: applicationId,
+          organization_id: orgId,
+          event_type: 'status_change',
+          old_value: status,
+          new_value: next,
+          summary: `Status changed from ${status} → ${next}`,
+        })
+      }
       setStatus(next)
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 2500)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { PayerFormWithPayer } from '../types'
 
 interface Props {
@@ -47,7 +48,7 @@ export default function GeneratePdfButton({ applicationId, payerForms }: Props) 
   if (payerForms.length === 0) {
     return (
       <p style={{ fontSize: '13px', color: '#94a3b8' }}>
-        No payer forms available. <a href="/payer-forms/new" style={{ color: '#4f46e5' }}>Upload a template</a> first.
+        No payer forms available. <Link href="/payer-forms/new" style={{ color: '#4f46e5' }}>Upload a template</Link> first.
       </p>
     )
   }

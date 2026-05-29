@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { supabase } from '../lib/supabase'
+import { createClient } from '../lib/supabase-server'
 import type { AssignmentWithRelations } from '../types'
 import DeleteRowButton from '../components/DeleteRowButton'
 
 export default async function AssignmentsPage() {
+  const supabase = await createClient()
   const { data: assignments, error } = await supabase
     .from('provider_group_locations')
     .select(`

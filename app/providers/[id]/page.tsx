@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '../../lib/supabase-server'
 import type { Provider } from '../../types'
 import ProviderEditor from '../../components/ProviderEditor'
 import DeleteButton from '../../components/DeleteButton'
@@ -33,6 +33,7 @@ export default async function ProviderDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
 
   const [
     { data, error },

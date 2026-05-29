@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import { useRouter } from 'next/navigation'
 import type { Provider, Group, Location } from '../../types'
 
 export default function NewAssignmentPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
   const [providers, setProviders] = useState<Provider[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -24,6 +26,7 @@ export default function NewAssignmentPage() {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!groupId) { setLocations([]); return }
     supabase.from('locations').select('*')
       .eq('group_id', groupId).eq('is_active', true).order('name', { ascending: true })
@@ -35,8 +38,10 @@ export default function NewAssignmentPage() {
     const locationId = formData.get('location_id') as string
     const isPrimary  = formData.get('is_primary') === 'on'
 
+    if (!orgId) { alert('Organization not loaded yet. Please wait.'); return }
     const { error } = await supabase.from('provider_group_locations').insert([{
-      provider_id: providerId, group_id: groupId, location_id: locationId, is_primary: isPrimary,
+      provider_id: providerId, group_id: groupId, location_id: locationId,
+      is_primary: isPrimary, organization_id: orgId,
     }])
 
     if (error) { alert('Error creating assignment'); return }

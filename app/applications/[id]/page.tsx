@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '../../lib/supabase-server'
 import type { PayerFormWithPayer } from '../../types'
 import StatusUpdater from '../../components/StatusUpdater'
 import LocationEditor from '../../components/LocationEditor'
@@ -8,6 +8,7 @@ import GeneratePdfButton from '../../components/GeneratePdfButton'
 import ValidationPanel from '../../components/ValidationPanel'
 import DeleteButton from '../../components/DeleteButton'
 import WorkflowPanel from '../../components/WorkflowPanel'
+import WorkflowFields from '../../components/WorkflowFields'
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
@@ -20,6 +21,7 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
 
   // ── Fetch application with full provider, group, payer detail ─────────────
   const { data: application, error } = await supabase
@@ -54,6 +56,8 @@ export default async function ApplicationDetailPage({
     assigned_to: string | null
     follow_up_date: string | null
     denial_reason: string | null
+    priority: string
+    next_action: string | null
     providers: {
       id: string; first_name: string; last_name: string; npi: string | null
       specialty: string | null; email: string | null; license_number: string | null
@@ -327,8 +331,6 @@ export default async function ApplicationDetailPage({
                 { label: 'Renewal Due',  value: fmtDate(app.renewal_date) },
                 { label: 'Payer Ref #',  value: app.payer_reference ?? '—' },
                 { label: 'Payer Prov. ID', value: app.payer_provider_id ?? '—' },
-                { label: 'Assigned To',  value: app.assigned_to ?? '—' },
-                { label: 'Follow-up',    value: fmtDate(app.follow_up_date) },
               ].map(({ label, value }) => (
                 <div key={label} className="detail-field" style={{ gap: 0 }}>
                   <dt>{label}</dt>
@@ -354,6 +356,18 @@ export default async function ApplicationDetailPage({
                 <div style={{ fontSize: '12px', color: '#475569' }}>{app.notes}</div>
               </div>
             )}
+          </div>
+
+          {/* Workflow fields */}
+          <div className="card-lg">
+            <p className="section-label">Workflow</p>
+            <WorkflowFields
+              applicationId={id}
+              initialPriority={app.priority}
+              initialNextAction={app.next_action}
+              initialAssignedTo={app.assigned_to}
+              initialFollowUpDate={app.follow_up_date}
+            />
           </div>
 
           {/* Readiness check */}

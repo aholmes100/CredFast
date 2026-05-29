@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '../../lib/supabase-server'
 import type { PayerFormWithPayer } from '../../types'
 import PdfFieldMapper from '../../components/PdfFieldMapper'
 import FieldMappingsEditor from '../../components/FieldMappingsEditor'
@@ -13,6 +13,7 @@ export default async function PayerFormDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('payer_forms')

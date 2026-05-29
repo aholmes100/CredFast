@@ -2,17 +2,21 @@
 
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import { useRouter } from 'next/navigation'
 
 export default function NewProviderPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
 
   async function handleSubmit(formData: FormData) {
+    if (!orgId) { alert('Organization not loaded yet. Please wait.'); return }
     const { error } = await supabase.from('providers').insert([{
-      first_name: formData.get('first_name') as string,
-      last_name:  formData.get('last_name')  as string,
-      npi:        formData.get('npi')        as string,
-      email:      formData.get('email')      as string,
+      first_name:      formData.get('first_name') as string,
+      last_name:       formData.get('last_name')  as string,
+      npi:             formData.get('npi')        as string,
+      email:           formData.get('email')      as string,
+      organization_id: orgId,
     }])
 
     if (error) { alert('Error creating provider'); return }

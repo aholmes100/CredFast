@@ -1,13 +1,14 @@
 import Link from 'next/link'
-import { supabase } from '../lib/supabase'
+import { createClient } from '../lib/supabase-server'
 import type { LocationWithGroup } from '../types'
-import DeleteRowButton from '../components/DeleteRowButton'
+import LocationList from '../components/LocationList'
 
 export default async function LocationsPage() {
+  const supabase = await createClient()
   const { data: locations, error } = await supabase
     .from('locations')
     .select(`*, groups(name)`)
-    .order('created_at', { ascending: false })
+    .order('name')
 
   if (error) {
     return (
@@ -16,6 +17,8 @@ export default async function LocationsPage() {
       </main>
     )
   }
+
+  const list = (locations ?? []) as LocationWithGroup[]
 
   return (
     <main className="page">
@@ -27,46 +30,7 @@ export default async function LocationsPage() {
         <Link href="/locations/new" className="btn btn-primary">+ New Location</Link>
       </div>
 
-      {locations?.length ? (
-        <div className="card-list">
-          {locations.map((location: LocationWithGroup) => (
-            <div key={location.id} className="card">
-              <div className="card-row">
-                <Link href={`/locations/${location.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div className="card-title">{location.name}</div>
-                    {location.groups?.name && (
-                      <span className="pill">{location.groups.name}</span>
-                    )}
-                    {!location.is_active && (
-                      <span className="pill" style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}>Inactive</span>
-                    )}
-                  </div>
-                  {location.address_1 && (
-                    <div className="card-sub" style={{ marginTop: '4px' }}>
-                      {location.address_1}
-                      {location.city  ? `, ${location.city}`  : ''}
-                      {location.state ? `, ${location.state}` : ''}
-                      {location.zip   ? ` ${location.zip}`    : ''}
-                    </div>
-                  )}
-                  {(location.phone || location.fax) && (
-                    <div className="card-meta" style={{ marginTop: '4px' }}>
-                      {location.phone && <span className="card-meta-item">Ph: {location.phone}</span>}
-                      {location.fax   && <span className="card-meta-item">Fax: {location.fax}</span>}
-                    </div>
-                  )}
-                </Link>
-                <DeleteRowButton table="locations" id={location.id} label="location" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">
-          No locations yet. <Link href="/locations/new">Add the first one.</Link>
-        </div>
-      )}
+      <LocationList locations={list} />
     </main>
   )
 }

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { supabase } from './lib/supabase'
+import { createClient } from './lib/supabase-server'
 import type { ApplicationWithRelations } from './types'
 
 const STATUS_CONFIG = {
@@ -14,6 +14,7 @@ function fmt(dateStr: string) {
 }
 
 export default async function HomePage() {
+  const supabase = await createClient()
   const [
     { count: providerCount },
     { count: groupCount },

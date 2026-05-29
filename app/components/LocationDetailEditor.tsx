@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Location, Group } from '../types'
 
+function CheckField({ checked, label, onChange }: { checked: boolean; label: string; onChange: (v: boolean) => void }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+        style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }}
+      />
+      <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>{label}</span>
+    </label>
+  )
+}
+
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN',
   'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',
@@ -107,17 +121,6 @@ export default function LocationDetailEditor({ location }: Props) {
     }
   }
 
-  const CheckField = ({ field, label }: { field: keyof typeof form; label: string }) => (
-    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-      <input
-        type="checkbox"
-        checked={form[field] as boolean}
-        onChange={e => set(field, e.target.checked)}
-        style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }}
-      />
-      <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>{label}</span>
-    </label>
-  )
 
   return (
     <div>
@@ -274,11 +277,11 @@ export default function LocationDetailEditor({ location }: Props) {
       <div className="card-lg" style={{ marginBottom: '12px' }}>
         <p className="section-label">Capabilities</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <CheckField field="accepts_new_patients" label="Accepting New Patients" />
-          <CheckField field="accepts_medicaid"     label="Accepts Medicaid" />
-          <CheckField field="accepts_medicare"     label="Accepts Medicare" />
-          <CheckField field="handicap_accessible"  label="Handicap Accessible" />
-          <CheckField field="is_active"            label="Location Active" />
+          <CheckField checked={!!form.accepts_new_patients} label="Accepting New Patients" onChange={v => set('accepts_new_patients', v)} />
+          <CheckField checked={!!form.accepts_medicaid}     label="Accepts Medicaid"       onChange={v => set('accepts_medicaid', v)} />
+          <CheckField checked={!!form.accepts_medicare}     label="Accepts Medicare"       onChange={v => set('accepts_medicare', v)} />
+          <CheckField checked={!!form.handicap_accessible}  label="Handicap Accessible"    onChange={v => set('handicap_accessible', v)} />
+          <CheckField checked={!!form.is_active}            label="Location Active"        onChange={v => set('is_active', v)} />
         </div>
       </div>
 

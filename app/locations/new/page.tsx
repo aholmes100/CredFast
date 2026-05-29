@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import { useRouter } from 'next/navigation'
 import type { Group } from '../../types'
 
 export default function NewLocationPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
   const [groups, setGroups] = useState<Group[]>([])
 
   useEffect(() => {
@@ -18,10 +20,12 @@ export default function NewLocationPage() {
   }, [])
 
   async function handleSubmit(formData: FormData) {
+    if (!orgId) { alert('Organization not loaded yet. Please wait.'); return }
     const groupId = formData.get('group_id') as string
     const str = (key: string) => (formData.get(key) as string)?.trim() || null
     const { error } = await supabase.from('locations').insert([{
       group_id:          groupId || null,
+      organization_id:   orgId,
       name:              formData.get('name')      as string,
       address_1:         str('address_1'),
       city:              str('city'),

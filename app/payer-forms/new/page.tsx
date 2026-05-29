@@ -4,10 +4,12 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import type { Payer } from '../../types'
 
 export default function NewPayerFormPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
   const [payers, setPayers] = useState<Payer[]>([])
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
@@ -24,6 +26,7 @@ export default function NewPayerFormPage() {
     const description = (formData.get('description') as string).trim()
 
     if (!name) { setError('Form name is required.'); return }
+    if (!orgId) { setError('Organization not loaded yet. Please wait.'); return }
 
     setSaving(true)
     setError(null)
@@ -50,11 +53,12 @@ export default function NewPayerFormPage() {
       .from('payer_forms')
       .insert([{
         name,
-        payer_id:     payerId || null,
-        description:  description || null,
-        storage_path: storagePath,
-        field_mappings: {},
-        is_active:    true,
+        payer_id:        payerId || null,
+        description:     description || null,
+        storage_path:    storagePath,
+        field_mappings:  {},
+        is_active:       true,
+        organization_id: orgId,
       }])
       .select()
       .single()

@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import { useRouter } from 'next/navigation'
 import type { Provider, Group, Payer, Location, LocationMode } from '../../types'
 
 export default function NewApplicationPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
   const [providers, setProviders] = useState<Provider[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [payers, setPayers] = useState<Payer[]>([])
@@ -30,6 +32,7 @@ export default function NewApplicationPage() {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!providerId || !groupId) { setLocations([]); setSelectedLocationIds([]); return }
     supabase.from('provider_group_locations')
       .select(`location_id, locations(id, name)`)
@@ -60,10 +63,12 @@ export default function NewApplicationPage() {
       alert('Please select at least one location.'); return
     }
 
+    if (!orgId) { alert('Organization not loaded yet. Please wait.'); return }
+
     const { data: appData, error: appError } = await supabase
       .from('enrollment_applications')
       .insert([{ provider_id: providerId, group_id: groupId, payer_id: payerId,
-        location_mode: locationMode, status: 'draft' }])
+        location_mode: locationMode, status: 'draft', organization_id: orgId }])
       .select().single()
 
     if (appError || !appData) { alert('Error creating application'); return }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useOrganizationId } from '../lib/use-organization-id'
 
 interface Task {
   id: string
@@ -17,6 +18,8 @@ interface Task {
 interface Note {
   id: string
   note: string
+  note_type: string
+  title: string | null
   is_pinned: boolean
   created_at: string
   created_by: string | null
@@ -34,11 +37,44 @@ interface FollowUp {
   logged_by: string | null
 }
 
+interface ActivityEntry {
+  id: string
+  event_type: string
+  field_name: string | null
+  old_value: string | null
+  new_value: string | null
+  summary: string
+  performed_by: string | null
+  created_at: string
+}
+
 interface Props {
   applicationId: string
 }
 
-type Tab = 'tasks' | 'notes' | 'followup'
+type Tab = 'tasks' | 'notes' | 'followup' | 'activity'
+
+const NOTE_TYPES = ['general', 'submission', 'approval', 'communication', 'denial', 'other']
+
+const EVENT_COLORS: Record<string, { bg: string; color: string; border: string }> = {
+  status_change:      { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  task_added:         { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+  task_completed:     { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+  note_added:         { bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' },
+  followup_logged:    { bg: '#fffbeb', color: '#b45309', border: '#fde68a' },
+  field_update:       { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
+  document_generated: { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  status_change:      'Status',
+  task_added:         'Task Added',
+  task_completed:     'Task Done',
+  note_added:         'Note',
+  followup_logged:    'Follow-up',
+  field_update:       'Updated',
+  document_generated: 'Document',
+}
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return null
@@ -50,38 +86,42 @@ function fmtTime(d: string) {
 }
 
 export default function WorkflowPanel({ applicationId }: Props) {
+  const orgId = useOrganizationId()
   const [tab, setTab] = useState<Tab>('tasks')
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [notes, setNotes] = useState<Note[]>([])
+  const [tasks, setTasks]       = useState<Task[]>([])
+  const [notes, setNotes]       = useState<Note[]>([])
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
-  const [loading, setLoading] = useState(true)
+  const [activity, setActivity]   = useState<ActivityEntry[]>([])
+  const [loading, setLoading]   = useState(true)
 
   // Add-task form
-  const [showTaskForm, setShowTaskForm] = useState(false)
-  const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newTaskDue, setNewTaskDue] = useState('')
+  const [showTaskForm, setShowTaskForm]   = useState(false)
+  const [newTaskTitle, setNewTaskTitle]   = useState('')
+  const [newTaskDue, setNewTaskDue]       = useState('')
   const [newTaskAssigned, setNewTaskAssigned] = useState('')
 
   // Add-note form
   const [showNoteForm, setShowNoteForm] = useState(false)
-  const [newNote, setNewNote] = useState('')
-  const [noteBy, setNoteBy] = useState('')
+  const [newNote, setNewNote]           = useState('')
+  const [noteTitle, setNoteTitle]       = useState('')
+  const [noteType, setNoteType]         = useState('general')
+  const [noteBy, setNoteBy]             = useState('')
 
   // Add-followup form
   const [showFollowupForm, setShowFollowupForm] = useState(false)
-  const [fuMethod, setFuMethod] = useState('phone')
-  const [fuContact, setFuContact] = useState('')
-  const [fuSummary, setFuSummary] = useState('')
-  const [fuOutcome, setFuOutcome] = useState('')
-  const [fuBy, setFuBy] = useState('')
+  const [fuMethod, setFuMethod]       = useState('phone')
+  const [fuContact, setFuContact]     = useState('')
+  const [fuSummary, setFuSummary]     = useState('')
+  const [fuOutcome, setFuOutcome]     = useState('')
+  const [fuBy, setFuBy]               = useState('')
   const [fuNeedsFollowup, setFuNeedsFollowup] = useState(false)
-  const [fuDate, setFuDate] = useState('')
+  const [fuDate, setFuDate]           = useState('')
 
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [tasksRes, notesRes, followRes] = await Promise.all([
+    const [tasksRes, notesRes, followRes, activityRes] = await Promise.all([
       supabase.from('application_tasks')
         .select('*')
         .eq('enrollment_application_id', applicationId)
@@ -97,22 +137,45 @@ export default function WorkflowPanel({ applicationId }: Props) {
         .select('*')
         .eq('enrollment_application_id', applicationId)
         .order('logged_at', { ascending: false }),
+      supabase.from('application_activity_log')
+        .select('*')
+        .eq('enrollment_application_id', applicationId)
+        .order('created_at', { ascending: false })
+        .limit(100),
     ])
     setTasks((tasksRes.data as Task[]) ?? [])
     setNotes((notesRes.data as Note[]) ?? [])
     setFollowUps((followRes.data as FollowUp[]) ?? [])
+    setActivity((activityRes.data as ActivityEntry[]) ?? [])
     setLoading(false)
   }, [applicationId])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
-  // ── Toggle task complete ───────────────────────────────────────────
+  const logActivity = useCallback(async (eventType: string, summary: string) => {
+    if (!orgId) return
+    await supabase.from('application_activity_log').insert({
+      enrollment_application_id: applicationId,
+      organization_id: orgId,
+      event_type: eventType,
+      summary,
+    })
+  }, [applicationId, orgId])
+
+  // ── Toggle task complete ──────────────────────────────────────────
   const toggleTask = async (task: Task) => {
     const { error } = await supabase
       .from('application_tasks')
       .update({ is_completed: !task.is_completed, completed_at: !task.is_completed ? new Date().toISOString() : null })
       .eq('id', task.id)
-    if (!error) load()
+    if (!error) {
+      await logActivity(
+        !task.is_completed ? 'task_completed' : 'task_added',
+        !task.is_completed ? `Task completed: ${task.title}` : `Task reopened: ${task.title}`
+      )
+      load()
+    }
   }
 
   // ── Add task ──────────────────────────────────────────────────────
@@ -121,18 +184,20 @@ export default function WorkflowPanel({ applicationId }: Props) {
     setSaving(true)
     const { error } = await supabase.from('application_tasks').insert({
       enrollment_application_id: applicationId,
+      organization_id: orgId,
       title: newTaskTitle.trim(),
       assigned_to: newTaskAssigned.trim() || null,
       due_date: newTaskDue || null,
       task_type: 'general',
       is_completed: false,
     })
-    setSaving(false)
     if (!error) {
+      await logActivity('task_added', `Task added: ${newTaskTitle.trim()}${newTaskAssigned.trim() ? ` → ${newTaskAssigned.trim()}` : ''}${newTaskDue ? ` (due ${fmtDate(newTaskDue)})` : ''}`)
       setNewTaskTitle(''); setNewTaskDue(''); setNewTaskAssigned('')
       setShowTaskForm(false)
       load()
     }
+    setSaving(false)
   }
 
   // ── Add note ──────────────────────────────────────────────────────
@@ -142,16 +207,20 @@ export default function WorkflowPanel({ applicationId }: Props) {
     const { error } = await supabase.from('internal_notes').insert({
       entity_type: 'application',
       entity_id: applicationId,
+      organization_id: orgId,
       note: newNote.trim(),
+      note_type: noteType,
+      title: noteTitle.trim() || null,
       created_by: noteBy.trim() || null,
       is_pinned: false,
     })
-    setSaving(false)
     if (!error) {
-      setNewNote(''); setNoteBy('')
+      await logActivity('note_added', `Note added${noteTitle.trim() ? `: ${noteTitle.trim()}` : ''} [${noteType}]${noteBy.trim() ? ` by ${noteBy.trim()}` : ''}`)
+      setNewNote(''); setNoteTitle(''); setNoteType('general'); setNoteBy('')
       setShowNoteForm(false)
       load()
     }
+    setSaving(false)
   }
 
   // ── Add follow-up ─────────────────────────────────────────────────
@@ -160,6 +229,7 @@ export default function WorkflowPanel({ applicationId }: Props) {
     setSaving(true)
     const { error } = await supabase.from('follow_up_log').insert({
       enrollment_application_id: applicationId,
+      organization_id: orgId,
       contact_method: fuMethod,
       contact_name: fuContact.trim() || null,
       summary: fuSummary.trim(),
@@ -168,23 +238,25 @@ export default function WorkflowPanel({ applicationId }: Props) {
       follow_up_date: fuDate || null,
       logged_by: fuBy.trim() || null,
     })
-    setSaving(false)
     if (!error) {
+      await logActivity('followup_logged', `Follow-up logged via ${fuMethod}${fuContact.trim() ? ` with ${fuContact.trim()}` : ''}${fuNeedsFollowup && fuDate ? ` — follow up ${fmtDate(fuDate)}` : ''}`)
       setFuMethod('phone'); setFuContact(''); setFuSummary('')
       setFuOutcome(''); setFuBy(''); setFuNeedsFollowup(false); setFuDate('')
       setShowFollowupForm(false)
       load()
     }
+    setSaving(false)
   }
 
-  const tasksDue = tasks.filter(t => !t.is_completed && t.due_date && new Date(t.due_date) < new Date())
-  const openTasks = tasks.filter(t => !t.is_completed)
-  const fuPending = followUps.filter(f => f.follow_up_required && f.follow_up_date)
+  const tasksDue   = tasks.filter(t => !t.is_completed && t.due_date && new Date(t.due_date) < new Date())
+  const openTasks  = tasks.filter(t => !t.is_completed)
+  const fuPending  = followUps.filter(f => f.follow_up_required && f.follow_up_date)
 
   const tabCounts: Record<Tab, number> = {
-    tasks: openTasks.length,
-    notes: notes.length,
+    tasks:    openTasks.length,
+    notes:    notes.length,
     followup: fuPending.length,
+    activity: 0,
   }
 
   return (
@@ -192,9 +264,10 @@ export default function WorkflowPanel({ applicationId }: Props) {
       {/* Tab nav */}
       <div className="tab-nav">
         {([
-          { id: 'tasks' as Tab,   label: 'Tasks' },
-          { id: 'notes' as Tab,   label: 'Notes' },
+          { id: 'tasks'    as Tab, label: 'Tasks' },
+          { id: 'notes'    as Tab, label: 'Notes' },
           { id: 'followup' as Tab, label: 'Follow-up Log' },
+          { id: 'activity' as Tab, label: 'Activity' },
         ] as const).map(({ id, label }) => (
           <button
             key={id}
@@ -301,7 +374,7 @@ export default function WorkflowPanel({ applicationId }: Props) {
                     />
                     <input
                       className="form-input"
-                      placeholder="Assigned to (email)…"
+                      placeholder="Assigned to…"
                       value={newTaskAssigned}
                       onChange={e => setNewTaskAssigned(e.target.value)}
                       style={{ flex: 1 }}
@@ -334,7 +407,20 @@ export default function WorkflowPanel({ applicationId }: Props) {
                       border: `1px solid ${note.is_pinned ? '#fde68a' : '#e2e8f0'}`,
                       borderRadius: '8px',
                     }}>
-                      {note.is_pinned && <span style={{ fontSize: '10px', fontWeight: 600, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>📌 Pinned · </span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        {note.is_pinned && (
+                          <span style={{ fontSize: '10px', fontWeight: 600, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>📌 Pinned</span>
+                        )}
+                        <span style={{
+                          fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+                          color: '#475569', backgroundColor: '#e2e8f0', padding: '1px 6px', borderRadius: '4px',
+                        }}>
+                          {note.note_type ?? 'general'}
+                        </span>
+                        {note.title && (
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>{note.title}</span>
+                        )}
+                      </div>
                       <span style={{ fontSize: '13px', color: '#0f172a', whiteSpace: 'pre-wrap' }}>{note.note}</span>
                       <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
                         {fmtTime(note.created_at)}{note.created_by ? ` · ${note.created_by}` : ''}
@@ -346,6 +432,19 @@ export default function WorkflowPanel({ applicationId }: Props) {
 
               {showNoteForm ? (
                 <div className="add-form">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px', marginBottom: '8px' }}>
+                    <select className="form-select" value={noteType} onChange={e => setNoteType(e.target.value)}>
+                      {NOTE_TYPES.map(t => (
+                        <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                      ))}
+                    </select>
+                    <input
+                      className="form-input"
+                      placeholder="Title (optional)…"
+                      value={noteTitle}
+                      onChange={e => setNoteTitle(e.target.value)}
+                    />
+                  </div>
                   <textarea
                     className="form-input"
                     placeholder="Add a note…"
@@ -484,6 +583,45 @@ export default function WorkflowPanel({ applicationId }: Props) {
                 <button onClick={() => setShowFollowupForm(true)} className="btn btn-secondary btn-sm">
                   + Log Follow-up
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* ── ACTIVITY LOG ──────────────────────────────────────── */}
+          {tab === 'activity' && (
+            <div>
+              {activity.length === 0 ? (
+                <div style={{ fontSize: '13px', color: '#94a3b8', padding: '8px 0' }}>No activity recorded yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {activity.map((entry) => {
+                    const ec = EVENT_COLORS[entry.event_type] ?? EVENT_COLORS.field_update
+                    const label = EVENT_LABELS[entry.event_type] ?? entry.event_type
+                    return (
+                      <div key={entry.id} style={{
+                        display: 'flex', gap: '10px', alignItems: 'flex-start',
+                        padding: '8px 10px', borderRadius: '6px',
+                        backgroundColor: '#f8fafc', border: '1px solid #f1f5f9',
+                      }}>
+                        <span style={{
+                          flexShrink: 0, fontSize: '10px', fontWeight: 700,
+                          textTransform: 'uppercase', letterSpacing: '0.05em',
+                          padding: '2px 7px', borderRadius: '4px',
+                          backgroundColor: ec.bg, color: ec.color, border: `1px solid ${ec.border}`,
+                          marginTop: '1px',
+                        }}>
+                          {label}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '12px', color: '#0f172a' }}>{entry.summary}</div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                            {fmtTime(entry.created_at)}{entry.performed_by ? ` · ${entry.performed_by}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
           )}

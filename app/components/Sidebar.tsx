@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
 const NAV_GROUPS = [
   {
@@ -37,6 +38,13 @@ const NAV_GROUPS = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   return (
     <aside
@@ -114,7 +122,23 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
-        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Pollux Internal</div>
+        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>Pollux Internal</div>
+        <button
+          onClick={handleLogout}
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            fontSize: '12px',
+            color: '#64748b',
+            backgroundColor: 'transparent',
+            border: '1px solid #e2e8f0',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          Sign out
+        </button>
       </div>
     </aside>
   )

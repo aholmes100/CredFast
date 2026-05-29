@@ -2,17 +2,21 @@
 
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import { useRouter } from 'next/navigation'
 
 export default function NewGroupPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
 
   async function handleSubmit(formData: FormData) {
+    if (!orgId) { alert('Organization not loaded yet. Please wait.'); return }
     const { error } = await supabase.from('groups').insert([{
-      name:       formData.get('name')       as string,
-      legal_name: formData.get('legal_name') as string,
-      tax_id:     formData.get('tax_id')     as string,
-      group_npi:  formData.get('group_npi')  as string,
+      name:            formData.get('name')       as string,
+      legal_name:      formData.get('legal_name') as string,
+      tax_id:          formData.get('tax_id')     as string,
+      group_npi:       formData.get('group_npi')  as string,
+      organization_id: orgId,
     }])
 
     if (error) { alert('Error creating group'); return }

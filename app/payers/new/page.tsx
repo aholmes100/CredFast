@@ -3,10 +3,12 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useOrganizationId } from '../../lib/use-organization-id'
 import { useRouter } from 'next/navigation'
 
 export default function NewPayerPage() {
   const router = useRouter()
+  const orgId = useOrganizationId()
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
 
@@ -27,6 +29,7 @@ export default function NewPayerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) { setError('Payer name is required.'); return }
+    if (!orgId) { setError('Organization not loaded yet. Please wait.'); return }
     setSaving(true); setError(null)
 
     const toNull = (v: string) => v.trim() || null
@@ -41,6 +44,7 @@ export default function NewPayerPage() {
       enrollment_address: toNull(form.enrollment_address),
       processing_days:    toInt(form.processing_days),
       notes:              toNull(form.notes),
+      organization_id:    orgId,
     }
     if (toNull(form.enrollment_fax)) row.enrollment_fax = toNull(form.enrollment_fax)
     if (toNull(form.enrollment_url)) row.enrollment_url = toNull(form.enrollment_url)

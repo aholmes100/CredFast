@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '../../lib/supabase-server'
 import type { PdfFillPayload, Provider, Group, Location, EnrollmentApplication } from '../../types'
 
 // ─── Resolve a data path like "provider.npi" against the payload ──────────────
@@ -95,6 +95,8 @@ export async function POST(req: NextRequest) {
     if (!applicationId || !payerFormId) {
       return NextResponse.json({ error: 'applicationId and payerFormId are required' }, { status: 400 })
     }
+
+    const supabase = await createClient()
 
     // ── 1. Load all related records ────────────────────────────────────────────
     const [

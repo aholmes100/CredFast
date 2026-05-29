@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '../../lib/supabase-server'
 import type { Location, Group } from '../../types'
 import LocationDetailEditor from '../../components/LocationDetailEditor'
 import DeleteButton from '../../components/DeleteButton'
@@ -11,6 +11,7 @@ export default async function LocationDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('locations')

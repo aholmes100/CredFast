@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { supabase } from '../lib/supabase'
+import { createClient } from '../lib/supabase-server'
 
 type EntityType = 'provider' | 'group' | 'location' | 'payer' | 'application'
 
@@ -42,6 +42,7 @@ function expirationStyle(dateStr: string | null | undefined): { color: string; f
 }
 
 export default async function DocumentsPage() {
+  const supabase = await createClient()
   // Query documents table — may not exist if Phase 2 migration hasn't been run
   const { data: rows, error } = await supabase
     .from('documents')
@@ -89,9 +90,11 @@ export default async function DocumentsPage() {
     return acc
   }, {} as Record<string, number>)
 
+  // eslint-disable-next-line react-hooks/purity
+  const NOW = Date.now()
   const expiringCount = allDocs.filter(d => {
     if (!d.expiration_date) return false
-    const days = Math.ceil((new Date(d.expiration_date).getTime() - Date.now()) / 86400000)
+    const days = Math.ceil((new Date(d.expiration_date).getTime() - NOW) / 86400000)
     return days >= 0 && days < 90
   }).length
 

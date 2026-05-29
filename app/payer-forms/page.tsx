@@ -1,8 +1,9 @@
 import Link from 'next/link'
-import { supabase } from '../lib/supabase'
+import { createClient } from '../lib/supabase-server'
 import type { PayerFormWithPayer } from '../types'
 
 export default async function PayerFormsPage() {
+  const supabase = await createClient()
   const { data: forms, error } = await supabase
     .from('payer_forms')
     .select(`*, payers(name)`)
