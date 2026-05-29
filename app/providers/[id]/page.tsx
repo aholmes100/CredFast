@@ -166,14 +166,46 @@ export default async function ProviderDetailPage({
           ))}
         </div>
 
-        {/* Expiration alerts */}
-        {(provider.license_expiration || provider.malpractice_expiration || provider.board_expiration) && (
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
-            {expirationBadge(provider.license_expiration, 'License')}
-            {expirationBadge(provider.malpractice_expiration, 'Malpractice')}
-            {expirationBadge(provider.board_expiration, 'Board cert')}
-          </div>
-        )}
+      </div>
+
+      {/* ── Credential Status ────────────────────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '16px' }}>
+        <p className="section-label">Credential Status</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {[
+            { label: 'Medical License',      date: provider.license_expiration,    detail: provider.license_number ? `${provider.license_number}${provider.license_state ? ` · ${provider.license_state}` : ''}` : null },
+            { label: 'Malpractice Insurance',date: provider.malpractice_expiration, detail: provider.malpractice_carrier ?? null },
+            { label: 'Board Certification',  date: provider.board_expiration,       detail: provider.board_specialty ?? null },
+            { label: 'DEA Registration',     date: null,                            detail: provider.dea_number ?? null },
+            { label: 'CAQH ProView',         date: null,                            detail: provider.caqh_number ?? null },
+          ].map(({ label, date, detail }) => {
+            // eslint-disable-next-line react-hooks/purity
+            const days = date ? Math.ceil((new Date(date).getTime() - Date.now()) / 86400000) : null
+            const expired = days !== null && days < 0
+            const soon    = days !== null && days >= 0 && days < 30
+            const upcoming= days !== null && days >= 30 && days < 90
+            const statusColor  = expired ? '#dc2626' : soon ? '#d97706' : upcoming ? '#b45309' : days !== null ? '#15803d' : '#94a3b8'
+            const statusBg     = expired ? '#fef2f2' : soon ? '#fef2f2' : upcoming ? '#fffbeb' : days !== null ? '#f0fdf4' : '#f8fafc'
+            const statusBorder = expired ? '#fecaca' : soon ? '#fecaca' : upcoming ? '#fde68a' : days !== null ? '#bbf7d0' : '#e2e8f0'
+            const statusLabel  = expired ? '⚠ Expired' : soon ? `Expires in ${days}d` : upcoming ? `Exp. ${fmtDate(date)}` : date ? `Current · exp ${fmtDate(date)}` : detail ? 'On file' : '—'
+            return (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>{label}</div>
+                  {detail && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{detail}</div>}
+                </div>
+                <span style={{
+                  flexShrink: 0, fontSize: '11px', fontWeight: 600,
+                  color: statusColor, backgroundColor: statusBg,
+                  border: `1px solid ${statusBorder}`,
+                  borderRadius: '5px', padding: '3px 8px',
+                }}>
+                  {statusLabel}
+                </span>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* ── Licenses (from provider_licenses table if migrated) ──────── */}

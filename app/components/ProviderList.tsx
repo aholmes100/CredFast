@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { Provider } from '../types'
 import DeleteRowButton from './DeleteRowButton'
@@ -34,10 +35,11 @@ function credStatus(p: Provider): 'expired' | 'expiring' | 'ok' {
 interface Props { providers: Provider[] }
 
 export default function ProviderList({ providers }: Props) {
+  const searchParams = useSearchParams()
   const [search,    setSearch]    = useState('')
   const [specialty, setSpecialty] = useState('')
-  const [panel,     setPanel]     = useState('')   // '' | 'open' | 'closed'
-  const [creds,     setCreds]     = useState('')   // '' | 'expiring' | 'expired'
+  const [panel,     setPanel]     = useState('')
+  const [creds,     setCreds]     = useState(searchParams.get('creds') ?? '')
 
   const specialties = useMemo(() =>
     Array.from(new Set(providers.map(p => p.specialty).filter(Boolean) as string[])).sort(),
