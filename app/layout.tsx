@@ -25,9 +25,17 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: notifData } = user
+    ? await supabase
+        .from('notifications')
+        .select('id, type, title, body, read_at, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20)
+    : { data: null }
+
+  const notifications = (notifData ?? []) as import('./components/NotificationBell').AppNotification[]
 
   return (
     <html
@@ -36,7 +44,7 @@ export default async function RootLayout({
       style={{ height: '100%' }}
     >
       <body style={{ display: 'flex', minHeight: '100vh', margin: 0 }}>
-        {user && <Sidebar />}
+        {user && <Sidebar initialNotifications={notifications} />}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: '100vh' }}>
           {children}
         </div>

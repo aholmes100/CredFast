@@ -237,7 +237,12 @@ export default async function ApplicationDetailPage({
           {/* Status */}
           <div className="card-lg">
             <p className="section-label">Status</p>
-            <StatusUpdater applicationId={id} currentStatus={app.status as 'draft' | 'ready' | 'submitted' | 'approved'} />
+            <StatusUpdater
+              applicationId={id}
+              currentStatus={app.status as 'draft' | 'ready' | 'submitted' | 'approved'}
+              providerName={providerName}
+              payerName={app.payers?.name ?? undefined}
+            />
           </div>
 
           {/* Locations */}

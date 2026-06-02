@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import NotificationBell, { type AppNotification } from './NotificationBell'
 
 const NAV_GROUPS = [
   {
@@ -37,7 +38,11 @@ const NAV_GROUPS = [
   },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  initialNotifications: AppNotification[]
+}
+
+export default function Sidebar({ initialNotifications }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -64,12 +69,17 @@ export default function Sidebar() {
       }}
     >
       {/* Logo */}
-      <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', letterSpacing: '-0.02em' }}>
-          CredFast
-        </div>
-        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Enrollment Platform
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', letterSpacing: '-0.02em' }}>
+              CredFast
+            </div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Enrollment Platform
+            </div>
+          </div>
+          <NotificationBell initialNotifications={initialNotifications} />
         </div>
       </div>
 

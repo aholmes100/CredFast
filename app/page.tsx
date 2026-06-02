@@ -64,6 +64,33 @@ export default async function HomePage() {
 
   const expiringSoonCount = new Set((expiringRows ?? []).map((p: { id: string }) => p.id)).size
 
+  // Insert expiration notifications (once per alert per day)
+  if (alerts.length > 0) {
+    const { data: profileData } = await supabase.from('profiles').select('organization_id').single()
+    const orgId = (profileData as { organization_id: string } | null)?.organization_id
+    if (orgId) {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const { data: existingNotifs } = await supabase
+        .from('notifications')
+        .select('title')
+        .eq('organization_id', orgId)
+        .eq('type', 'expiration_alert')
+        .gte('created_at', todayStart.toISOString())
+      const existingTitles = new Set((existingNotifs ?? []).map((n: { title: string }) => n.title))
+      const toInsert = alerts
+        .filter(a => !existingTitles.has(`Credential expiring: ${a.providerName}`))
+        .map(a => ({
+          organization_id: orgId,
+          type:  'expiration_alert',
+          title: `Credential expiring: ${a.providerName}`,
+          body:  `${a.providerName}'s ${a.credential} ${a.daysUntil < 0 ? 'expired' : 'expires'} on ${new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${a.daysUntil >= 0 ? ` (${a.daysUntil} day${a.daysUntil !== 1 ? 's' : ''})` : ''}.`,
+        }))
+      if (toInsert.length > 0) {
+        await supabase.from('notifications').insert(toInsert)
+      }
+    }
+  }
+
   const statusCounts = { draft: 0, ready: 0, submitted: 0, approved: 0 }
   for (const a of (allApps ?? [])) {
     const s = a.status as keyof typeof statusCounts

@@ -19,9 +19,11 @@ const STATUS_ORDER: Record<ApplicationStatus, number> = {
 interface Props {
   applicationId: string
   currentStatus: ApplicationStatus
+  providerName?: string
+  payerName?: string
 }
 
-export default function StatusUpdater({ applicationId, currentStatus }: Props) {
+export default function StatusUpdater({ applicationId, currentStatus, providerName, payerName }: Props) {
   const orgId = useOrganizationId()
   const [status, setStatus] = useState<ApplicationStatus>(currentStatus)
   const [saving, setSaving] = useState(false)
@@ -51,6 +53,14 @@ export default function StatusUpdater({ applicationId, currentStatus }: Props) {
           old_value: status,
           new_value: next,
           summary: `Status changed from ${status} → ${next}`,
+        })
+        const subject = providerName ?? 'An application'
+        const payer   = payerName   ? ` with ${payerName}` : ''
+        await supabase.from('notifications').insert({
+          organization_id: orgId,
+          type:  'status_change',
+          title: 'Application status updated',
+          body:  `${subject}'s application${payer} moved to ${next}.`,
         })
       }
       setStatus(next)
