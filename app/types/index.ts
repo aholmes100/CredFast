@@ -232,6 +232,28 @@ export interface PayerFormWithPayer extends PayerForm {
 }
 
 // ============================================================
+// Roster templates
+// ============================================================
+
+export interface RosterTemplate {
+  id: string
+  organization_id: string
+  payer_id: string | null
+  name: string
+  file_path: string
+  file_name: string
+  sheet_name: string
+  header_row: number
+  column_mappings: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface RosterTemplateWithPayer extends RosterTemplate {
+  payers: Pick<Payer, 'name'> | null
+}
+
+// ============================================================
 // PDF generation payload — assembled before filling a form
 // ============================================================
 export interface PdfFillPayload {

@@ -29,6 +29,7 @@ const NAV_GROUPS = [
       { href: '/reports',      label: 'Reports' },
       { href: '/payers',       label: 'Payers' },
       { href: '/payer-forms',  label: 'Payer Forms' },
+      { href: '/rosters',     label: 'Rosters' },
     ],
   },
   {
