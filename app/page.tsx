@@ -1,289 +1,675 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { createClient } from './lib/supabase-server'
-import type { ApplicationWithRelations } from './types'
-import ExpirationBanner, { type ExpirationAlert } from './components/ExpirationBanner'
+import WaitlistForm from './components/WaitlistForm'
 
-const STATUS_CONFIG = {
-  draft:     { label: 'Draft',     bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0',  dot: 'dot-draft' },
-  ready:     { label: 'Ready',     bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe',  dot: 'dot-ready' },
-  submitted: { label: 'Submitted', bg: '#fffbeb', color: '#b45309', border: '#fde68a',  dot: 'dot-submitted' },
-  approved:  { label: 'Approved',  bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0',  dot: 'dot-approved' },
-} as const
+// ── Inline SVG icons ───────────────────────────────────────────────────────────
 
-function fmt(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function IconClock({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  )
 }
 
-export default async function HomePage() {
-  const supabase = await createClient()
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() + 90)
-  const cutoffStr = cutoff.toISOString().slice(0, 10)
+function IconAlert({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
 
-  const [
-    { count: providerCount },
-    { count: groupCount },
-    { count: locationCount },
-    { count: appCount },
-    { count: assignmentCount },
-    { data: allApps },
-    { data: recentApps },
-    { data: expiringRows },
-  ] = await Promise.all([
-    supabase.from('providers').select('*', { count: 'exact', head: true }),
-    supabase.from('groups').select('*', { count: 'exact', head: true }),
-    supabase.from('locations').select('*', { count: 'exact', head: true }),
-    supabase.from('enrollment_applications').select('*', { count: 'exact', head: true }),
-    supabase.from('provider_group_locations').select('*', { count: 'exact', head: true }),
-    supabase.from('enrollment_applications').select('id, status'),
-    supabase.from('enrollment_applications')
-      .select(`id, status, created_at, submitted_at, providers(first_name, last_name), groups(name), payers(name)`)
-      .order('created_at', { ascending: false })
-      .limit(8),
-    supabase.from('providers')
-      .select('id, first_name, last_name, license_expiration, malpractice_expiration, board_expiration')
-      .or(`license_expiration.lte.${cutoffStr},malpractice_expiration.lte.${cutoffStr},board_expiration.lte.${cutoffStr}`),
-  ])
+function IconTable({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18M3 15h18M9 3v18" />
+    </svg>
+  )
+}
 
-  // eslint-disable-next-line react-hooks/purity
-  const now = Date.now()
-  const alerts: ExpirationAlert[] = []
-  for (const p of (expiringRows ?? []) as { id: string; first_name: string; last_name: string; license_expiration: string | null; malpractice_expiration: string | null; board_expiration: string | null }[]) {
-    const name = `${p.first_name} ${p.last_name}`
-    for (const [date, credential] of [
-      [p.license_expiration,    'Medical License'],
-      [p.malpractice_expiration,'Malpractice Insurance'],
-      [p.board_expiration,      'Board Certification'],
-    ] as [string | null, string][]) {
-      if (!date) continue
-      const days = Math.ceil((new Date(date).getTime() - now) / 86400000)
-      if (days <= 90) alerts.push({ providerId: p.id, providerName: name, credential, date, daysUntil: days })
-    }
-  }
-  alerts.sort((a, b) => a.daysUntil - b.daysUntil)
+function IconDoc({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  )
+}
 
-  const expiringSoonCount = new Set((expiringRows ?? []).map((p: { id: string }) => p.id)).size
+function IconBell({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 01-3.46 0" />
+    </svg>
+  )
+}
 
-  // Insert expiration notifications (once per alert per day)
-  if (alerts.length > 0) {
-    const { data: profileData } = await supabase.from('profiles').select('organization_id').single()
-    const orgId = (profileData as { organization_id: string } | null)?.organization_id
-    if (orgId) {
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const { data: existingNotifs } = await supabase
-        .from('notifications')
-        .select('title')
-        .eq('organization_id', orgId)
-        .eq('type', 'expiration_alert')
-        .gte('created_at', todayStart.toISOString())
-      const existingTitles = new Set((existingNotifs ?? []).map((n: { title: string }) => n.title))
-      const toInsert = alerts
-        .filter(a => !existingTitles.has(`Credential expiring: ${a.providerName}`))
-        .map(a => ({
-          organization_id: orgId,
-          type:  'expiration_alert',
-          title: `Credential expiring: ${a.providerName}`,
-          body:  `${a.providerName}'s ${a.credential} ${a.daysUntil < 0 ? 'expired' : 'expires'} on ${new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${a.daysUntil >= 0 ? ` (${a.daysUntil} day${a.daysUntil !== 1 ? 's' : ''})` : ''}.`,
-        }))
-      if (toInsert.length > 0) {
-        await supabase.from('notifications').insert(toInsert)
-      }
-    }
-  }
+function IconFlow({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <path d="M13 6h3a2 2 0 012 2v7" />
+      <line x1="6" y1="9" x2="6" y2="21" />
+    </svg>
+  )
+}
 
-  const statusCounts = { draft: 0, ready: 0, submitted: 0, approved: 0 }
-  for (const a of (allApps ?? [])) {
-    const s = a.status as keyof typeof statusCounts
-    if (s in statusCounts) statusCounts[s]++
-  }
+function IconUpload({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  )
+}
 
-  const recent = (recentApps ?? []) as unknown as ApplicationWithRelations[]
-  const submitted = recent.filter(a => a.status === 'submitted')
-  const actionNeeded = recent.filter(a => a.status === 'ready')
+function IconChart({ color }: { color: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  )
+}
+
+// ── Data ───────────────────────────────────────────────────────────────────────
+
+const PROBLEMS = [
+  {
+    title: 'Hours lost every month',
+    description:
+      'Filling the same provider information into dozens of different payer forms, one field at a time.',
+    Icon: IconClock,
+    iconColor: '#4f46e5',
+    iconBg: 'rgba(79,70,229,0.1)',
+  },
+  {
+    title: 'Credentials that slip through',
+    description:
+      'License expirations, malpractice renewals, board certifications — tracked in spreadsheets that don’t alert you.',
+    Icon: IconAlert,
+    iconColor: '#d97706',
+    iconBg: 'rgba(217,119,6,0.1)',
+  },
+  {
+    title: 'Roster season chaos',
+    description:
+      'Every payer has a different template. Every update means opening the file and doing it manually again.',
+    Icon: IconTable,
+    iconColor: '#dc2626',
+    iconBg: 'rgba(220,38,38,0.1)',
+  },
+]
+
+const FEATURES = [
+  {
+    title: 'PDF Form Autofill',
+    description:
+      'Upload any payer enrollment form, map the fields once, and auto-fill it for every provider with one click.',
+    Icon: IconDoc,
+    iconColor: '#4f46e5',
+    iconBg: 'rgba(79,70,229,0.12)',
+  },
+  {
+    title: 'Roster Generation',
+    description:
+      'Upload a blank Humana, Anthem, or any payer roster template. Select your providers. Download a filled roster in seconds.',
+    Icon: IconTable,
+    iconColor: '#16a34a',
+    iconBg: 'rgba(22,163,74,0.12)',
+  },
+  {
+    title: 'Expiration Tracking',
+    description:
+      'Automatic alerts when licenses, malpractice coverage, or board certifications are expiring in the next 30, 60, or 90 days.',
+    Icon: IconBell,
+    iconColor: '#d97706',
+    iconBg: 'rgba(217,119,6,0.12)',
+  },
+  {
+    title: 'Enrollment Pipeline',
+    description:
+      'Track every application from draft to approved. Notes, tasks, follow-up logs, and activity history in one place.',
+    Icon: IconFlow,
+    iconColor: '#1d4ed8',
+    iconBg: 'rgba(29,78,216,0.12)',
+  },
+  {
+    title: 'Provider Import',
+    description:
+      'Import provider data from MedTrainer or any spreadsheet. Column mapping handles the differences automatically.',
+    Icon: IconUpload,
+    iconColor: '#7c3aed',
+    iconBg: 'rgba(124,58,237,0.12)',
+  },
+  {
+    title: 'Reporting Dashboard',
+    description:
+      'Credential expiration reports, enrollment pipeline summaries, provider completeness tracking, and payer enrollment analytics.',
+    Icon: IconChart,
+    iconColor: '#db2777',
+    iconBg: 'rgba(219,39,119,0.12)',
+  },
+]
+
+const STEPS = [
+  {
+    n: '1',
+    title: 'Add your providers',
+    description:
+      'Import from MedTrainer or add providers manually. CredFast stores everything needed for enrollment.',
+  },
+  {
+    n: '2',
+    title: 'Map your forms once',
+    description:
+      'Upload payer forms and roster templates. Map the fields to provider data. Never map them again.',
+  },
+  {
+    n: '3',
+    title: 'Generate and submit',
+    description:
+      'Select a provider, pick a form or roster, and download a completed file ready to submit.',
+  },
+]
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export default function LandingPage() {
+  const [navSolid, setNavSolid]   = useState(false)
+  const sentinelRef               = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setNavSolid(!entry.isIntersecting),
+      { threshold: 0 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const scrollTo = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 
   return (
-    <main className="page-xl">
-      <div style={{ marginBottom: '28px' }}>
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Provider enrollment and credentialing — Pollux Medical Group</p>
-      </div>
+    <>
+      <style>{`
+        * { box-sizing: border-box; }
 
-      {/* ── Expiration banner ─────────────────────────────── */}
-      <ExpirationBanner alerts={alerts} />
+        .lp-wrap {
+          max-width: 1080px;
+          margin: 0 auto;
+          padding: 0 32px;
+        }
 
-      {/* ── Getting started (new orgs only) ───────────────── */}
-      {(providerCount ?? 0) === 0 && (appCount ?? 0) === 0 && (
-        <div style={{
-          marginBottom: '24px',
-          borderRadius: '12px',
-          border: '1px solid #e0e7ff',
-          backgroundColor: '#f5f3ff',
-          padding: '24px 28px',
+        .lp-hero-title {
+          font-size: 64px;
+          font-weight: 800;
+          color: #ffffff;
+          line-height: 1.05;
+          letter-spacing: -0.035em;
+          max-width: 740px;
+          text-align: center;
+        }
+
+        .lp-section-title {
+          font-size: 40px;
+          font-weight: 700;
+          color: #0f172a;
+          letter-spacing: -0.025em;
+          line-height: 1.15;
+          text-align: center;
+          margin-bottom: 16px;
+        }
+
+        .lp-section-sub {
+          font-size: 17px;
+          color: #64748b;
+          text-align: center;
+          max-width: 560px;
+          margin: 0 auto 56px;
+          line-height: 1.65;
+        }
+
+        .lp-grid-3 {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 24px;
+        }
+
+        .lp-grid-2 {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 24px;
+        }
+
+        .lp-steps {
+          display: flex;
+          align-items: flex-start;
+          gap: 0;
+        }
+
+        .lp-cta-row {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .lp-footer-inner {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        @media (max-width: 860px) {
+          .lp-wrap { padding: 0 20px; }
+          .lp-hero-title { font-size: 40px; }
+          .lp-section-title { font-size: 30px; }
+          .lp-grid-3 { grid-template-columns: 1fr; }
+          .lp-grid-2 { grid-template-columns: 1fr; }
+          .lp-steps { flex-direction: column; gap: 32px; }
+          .lp-connector { display: none !important; }
+          .lp-footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+        }
+
+        @media (max-width: 560px) {
+          .lp-hero-title { font-size: 32px; }
+          .lp-section-title { font-size: 26px; }
+        }
+      `}</style>
+
+      <div style={{ backgroundColor: '#0f172a', fontFamily: 'var(--font-geist-sans, system-ui, sans-serif)', WebkitFontSmoothing: 'antialiased' }}>
+
+        {/* Scroll sentinel — sits just below the hero fold */}
+        <div ref={sentinelRef} style={{ position: 'absolute', top: '80vh', height: '1px', pointerEvents: 'none' }} />
+
+        {/* ── Fixed Navbar ──────────────────────────────────────── */}
+        <nav style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0,
+          zIndex: 200,
+          backgroundColor: navSolid ? 'rgba(255,255,255,0.97)' : 'transparent',
+          backdropFilter: navSolid ? 'blur(12px)' : 'none',
+          boxShadow: navSolid ? '0 1px 0 rgba(0,0,0,0.06)' : 'none',
+          transition: 'background-color 0.25s, box-shadow 0.25s',
         }}>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-            Welcome to CredFast
-          </div>
-          <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-            Get set up in a few steps
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {[
-              { href: '/providers/new',   label: 'Add your first provider' },
-              { href: '/groups/new',      label: 'Add a group' },
-              { href: '/locations/new',   label: 'Add a location' },
-              { href: '/payer-forms/new', label: 'Upload a payer form' },
-              { href: '/applications/new',label: 'Create your first application' },
-            ].map(({ href, label }) => (
-              <Link key={href} href={href} style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                fontSize: '13px', fontWeight: 500, color: '#4f46e5', textDecoration: 'none',
-              }}>
-                <span style={{ color: '#a5b4fc', fontWeight: 700 }}>✦</span>
-                {label}
+          <div className="lp-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
+            <span style={{
+              fontWeight: 700,
+              fontSize: '16px',
+              letterSpacing: '-0.025em',
+              color: navSolid ? '#0f172a' : '#ffffff',
+              transition: 'color 0.25s',
+            }}>
+              CredFast
+            </span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Link href="/login" style={{
+                fontSize: '14px',
+                fontWeight: 500,
+                color: navSolid ? '#475569' : '#94a3b8',
+                textDecoration: 'none',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = navSolid ? '#0f172a' : '#ffffff' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = navSolid ? '#475569' : '#94a3b8' }}
+              >
+                Sign In
               </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Stats row ─────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '28px' }}>
-        {[
-          { label: 'Providers',      value: providerCount      ?? 0, href: '/providers',              sub: 'credentialed practitioners' },
-          { label: 'Groups',         value: groupCount         ?? 0, href: '/groups',                  sub: 'practice groups' },
-          { label: 'Locations',      value: locationCount      ?? 0, href: '/locations',               sub: 'service sites' },
-          { label: 'Assignments',    value: assignmentCount    ?? 0, href: '/assignments',             sub: 'provider placements' },
-          { label: 'Applications',   value: appCount           ?? 0, href: '/applications',            sub: 'total enrollment apps' },
-          { label: 'Expiring Soon',  value: expiringSoonCount,       href: '/providers?creds=expiring', sub: 'credentials within 90 days', alert: expiringSoonCount > 0 },
-        ].map(({ label, value, href, sub, alert }) => (
-          <Link key={href} href={href} className="metric-card" style={alert ? { borderColor: '#fde68a', backgroundColor: '#fffbeb' } : undefined}>
-            <div className="metric-value" style={alert ? { color: '#d97706' } : undefined}>{value}</div>
-            <div className="metric-label" style={alert ? { color: '#d97706' } : undefined}>{label}</div>
-            <div style={{ fontSize: '11px', color: alert ? '#b45309' : '#94a3b8', marginTop: '3px' }}>{sub}</div>
-          </Link>
-        ))}
-      </div>
-
-      {/* ── Application pipeline ──────────────────────────── */}
-      <p className="section-label">Application Pipeline</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '28px' }}>
-        {(Object.entries(statusCounts) as [keyof typeof STATUS_CONFIG, number][]).map(([status, count]) => {
-          const cfg = STATUS_CONFIG[status]
-          return (
-            <Link key={status} href={`/applications?status=${status}`} style={{ textDecoration: 'none' }}>
-              <div style={{
-                backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
-                borderRadius: '10px', padding: '16px 20px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                transition: 'box-shadow 0.15s',
-              }}>
-                <div>
-                  <div style={{ fontSize: '26px', fontWeight: 700, color: cfg.color, lineHeight: 1 }}>{count}</div>
-                  <div style={{ fontSize: '12px', color: cfg.color, marginTop: '4px', fontWeight: 500 }}>{cfg.label}</div>
-                </div>
-                <span className={`status-dot ${cfg.dot}`} style={{ width: '10px', height: '10px' }} />
-              </div>
-            </Link>
-          )
-        })}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
-        {/* ── Recent Applications ───────────────────────── */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <p className="section-label" style={{ margin: 0 }}>Recent Applications</p>
-            <Link href="/applications" style={{ fontSize: '11px', color: '#4f46e5', textDecoration: 'none', fontWeight: 500 }}>
-              View all →
-            </Link>
-          </div>
-          <div className="card-list">
-            {recent.length ? recent.map((app) => (
-              <Link key={app.id} href={`/applications/${app.id}`} className="card-hover" style={{ padding: '12px 16px' }}>
-                <div className="card-row">
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className={`status-dot ${STATUS_CONFIG[app.status as keyof typeof STATUS_CONFIG]?.dot}`} />
-                      <span className="card-title" style={{ fontSize: '13px' }}>
-                        {app.providers?.first_name} {app.providers?.last_name}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', marginLeft: '15px' }}>
-                      {app.payers?.name || '—'} · {app.groups?.name || '—'}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
-                    <span className={`badge badge-${app.status}`}>{app.status}</span>
-                    <span style={{ fontSize: '10px', color: '#cbd5e1' }}>{fmt(app.created_at)}</span>
-                  </div>
-                </div>
+              <Link href="/signup" style={{
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#ffffff',
+                textDecoration: 'none',
+                padding: '7px 16px',
+                borderRadius: '6px',
+                backgroundColor: '#4f46e5',
+                transition: 'background-color 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#4338ca' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#4f46e5' }}
+              >
+                Sign Up
               </Link>
-            )) : (
-              <div className="empty-state" style={{ padding: '24px 16px' }}>No applications yet.</div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Action items + Quick Actions ─────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Needs attention */}
-          <div>
-            <p className="section-label">Needs Attention</p>
-            <div className="card-list">
-              {actionNeeded.length === 0 && submitted.length === 0 ? (
-                <div className="card-lg" style={{ padding: '14px 16px' }}>
-                  <div style={{ fontSize: '13px', color: '#22c55e', fontWeight: 500 }}>✓ No pending actions</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>All applications are up to date.</div>
-                </div>
-              ) : (
-                <>
-                  {actionNeeded.slice(0, 2).map((app) => (
-                    <Link key={app.id} href={`/applications/${app.id}`} className="card-hover" style={{ padding: '10px 14px', borderLeft: '3px solid #3b82f6' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>
-                        {app.providers?.first_name} {app.providers?.last_name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '2px' }}>
-                        Ready — pending submission to {app.payers?.name || 'payer'}
-                      </div>
-                    </Link>
-                  ))}
-                  {submitted.slice(0, 2).map((app) => (
-                    <Link key={app.id} href={`/applications/${app.id}`} className="card-hover" style={{ padding: '10px 14px', borderLeft: '3px solid #f59e0b' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>
-                        {app.providers?.first_name} {app.providers?.last_name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#b45309', marginTop: '2px' }}>
-                        Submitted — awaiting response from {app.payers?.name || 'payer'}
-                      </div>
-                    </Link>
-                  ))}
-                </>
-              )}
             </div>
           </div>
+        </nav>
 
-          {/* Quick actions */}
-          <div>
-            <p className="section-label">Quick Actions</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-              {[
-                { href: '/applications/new', label: 'New Application', icon: '📋' },
-                { href: '/providers/new',    label: 'New Provider',    icon: '👤' },
-                { href: '/payer-forms/new',  label: 'New Payer Form',  icon: '📄' },
-                { href: '/assignments/new',  label: 'New Assignment',  icon: '🔗' },
-              ].map(({ href, label, icon }) => (
-                <Link key={href} href={href} className="section-card" style={{ padding: '10px 12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '14px' }}>{icon}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>{label}</span>
+        {/* ── Section 1: Hero ───────────────────────────────────── */}
+        <section style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: '100px 32px 80px',
+          background: 'radial-gradient(ellipse 80% 70% at 50% 30%, rgba(79,70,229,0.28) 0%, transparent 65%), #0f172a',
+          position: 'relative',
+        }}>
+          {/* Badge */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 14px',
+            borderRadius: '9999px',
+            backgroundColor: 'rgba(79,70,229,0.2)',
+            border: '1px solid rgba(99,102,241,0.4)',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: '#a5b4fc',
+            marginBottom: '32px',
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#818cf8', flexShrink: 0 }} />
+            Early Access
+          </div>
+
+          {/* Headline */}
+          <h1 className="lp-hero-title">
+            Credentialing workflow,<br />finally automated.
+          </h1>
+
+          {/* Subheadline */}
+          <p style={{
+            fontSize: '22px',
+            fontWeight: 400,
+            color: '#94a3b8',
+            marginTop: '16px',
+            letterSpacing: '-0.01em',
+          }}>
+            Because your time is better spent elsewhere.
+          </p>
+
+          {/* Supporting paragraph */}
+          <p style={{
+            fontSize: '16px',
+            color: '#475569',
+            maxWidth: '580px',
+            marginTop: '14px',
+            lineHeight: '1.7',
+          }}>
+            CredFast handles the repetitive work — auto-filling payer applications, tracking provider
+            credentials, generating rosters, and alerting you before anything expires. Built specifically
+            for credentialing coordinators and RCM teams who are tired of doing the same manual tasks
+            every month.
+          </p>
+
+          {/* CTA buttons */}
+          <div className="lp-cta-row" style={{ marginTop: '36px' }}>
+            <button
+              onClick={() => scrollTo('waitlist')}
+              style={{
+                padding: '13px 28px',
+                fontSize: '15px',
+                fontWeight: 600,
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#4f46e5',
+                color: '#ffffff',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s, transform 0.1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#4338ca' }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#4f46e5' }}
+            >
+              Request Early Access
+            </button>
+            <button
+              onClick={() => scrollTo('features')}
+              style={{
+                padding: '13px 28px',
+                fontSize: '15px',
+                fontWeight: 500,
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                backgroundColor: 'transparent',
+                color: '#e2e8f0',
+                cursor: 'pointer',
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; e.currentTarget.style.color = '#ffffff' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0' }}
+            >
+              See How It Works
+            </button>
+          </div>
+
+          {/* Social proof */}
+          <p style={{ marginTop: '22px', fontSize: '12px', color: '#334155', letterSpacing: '0.01em' }}>
+            Currently in early access — join the waitlist
+          </p>
+        </section>
+
+        {/* ── Section 2: Problem ────────────────────────────────── */}
+        <section style={{ backgroundColor: '#ffffff', padding: '88px 0' }}>
+          <div className="lp-wrap">
+            <p style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              color: '#94a3b8',
+              textAlign: 'center',
+              marginBottom: '48px',
+            }}>
+              Sound familiar?
+            </p>
+            <div className="lp-grid-3">
+              {PROBLEMS.map(p => (
+                <div key={p.title} style={{
+                  padding: '28px 24px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff',
+                }}>
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '10px',
+                    backgroundColor: p.iconBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '16px',
+                  }}>
+                    <p.Icon color={p.iconColor} />
                   </div>
-                  <span className="section-card-arrow" style={{ fontSize: '14px' }}>→</span>
-                </Link>
+                  <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '8px', letterSpacing: '-0.01em' }}>
+                    {p.title}
+                  </h3>
+                  <p style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.65', margin: 0 }}>
+                    {p.description}
+                  </p>
+                </div>
               ))}
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* ── Section 3: Features ───────────────────────────────── */}
+        <section id="features" style={{ backgroundColor: '#f8fafc', padding: '96px 0' }}>
+          <div className="lp-wrap">
+            <h2 className="lp-section-title">
+              Everything your credentialing<br />team needs.
+            </h2>
+            <p className="lp-section-sub">
+              One platform for the full credentialing and enrollment lifecycle.
+            </p>
+            <div className="lp-grid-3">
+              {FEATURES.map(f => (
+                <div key={f.title} style={{
+                  padding: '24px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff',
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '9px',
+                    backgroundColor: f.iconBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '14px',
+                  }}>
+                    <f.Icon color={f.iconColor} />
+                  </div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '6px', letterSpacing: '-0.01em' }}>
+                    {f.title}
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.65', margin: 0 }}>
+                    {f.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 4: How It Works ───────────────────────────── */}
+        <section id="how-it-works" style={{ backgroundColor: '#ffffff', padding: '96px 0' }}>
+          <div className="lp-wrap">
+            <h2 className="lp-section-title">
+              From setup to filled forms<br />in minutes.
+            </h2>
+            <p className="lp-section-sub">
+              The same data, mapped once, powers every form and roster you need to submit.
+            </p>
+
+            <div className="lp-steps" style={{ maxWidth: '900px', margin: '0 auto' }}>
+              {STEPS.map((step, i) => (
+                <>
+                  <div key={step.n} style={{ flex: 1, textAlign: 'center', padding: '0 16px' }}>
+                    <div style={{
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '50%',
+                      backgroundColor: '#0f172a',
+                      color: '#ffffff',
+                      fontSize: '18px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px',
+                      letterSpacing: '-0.02em',
+                    }}>
+                      {step.n}
+                    </div>
+                    <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '8px', letterSpacing: '-0.01em' }}>
+                      {step.title}
+                    </h3>
+                    <p style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.65', margin: 0 }}>
+                      {step.description}
+                    </p>
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div className="lp-connector" style={{
+                      width: '60px',
+                      height: '2px',
+                      backgroundColor: '#e2e8f0',
+                      flexShrink: 0,
+                      marginTop: '26px',
+                    }} />
+                  )}
+                </>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 5: Waitlist CTA ───────────────────────────── */}
+        <section id="waitlist" style={{
+          background: 'radial-gradient(ellipse 70% 80% at 50% 50%, rgba(79,70,229,0.2) 0%, transparent 70%), #0f172a',
+          padding: '96px 0',
+          textAlign: 'center',
+        }}>
+          <div className="lp-wrap">
+            <h2 style={{
+              fontSize: '40px',
+              fontWeight: 700,
+              color: '#ffffff',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.15,
+              marginBottom: '16px',
+            }}>
+              Join the CredFast early access waitlist.
+            </h2>
+            <p style={{
+              fontSize: '16px',
+              color: '#64748b',
+              maxWidth: '520px',
+              margin: '0 auto 40px',
+              lineHeight: '1.7',
+            }}>
+              We&apos;re working with a small group of credentialing teams to shape the product. Early access
+              members get priority onboarding and locked-in founding pricing.
+            </p>
+
+            <WaitlistForm />
+
+            <p style={{ marginTop: '16px', fontSize: '12px', color: '#334155', letterSpacing: '0.01em' }}>
+              No credit card required. No commitment.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Section 6: Footer ─────────────────────────────────── */}
+        <footer style={{
+          backgroundColor: '#080e1a',
+          borderTop: '1px solid rgba(255,255,255,0.05)',
+          padding: '24px 0',
+        }}>
+          <div className="lp-wrap">
+            <div className="lp-footer-inner">
+              <span style={{ fontSize: '15px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em' }}>
+                CredFast
+              </span>
+              <span style={{ fontSize: '12px', color: '#334155' }}>
+                &copy; 2026 CredFast. All rights reserved.
+              </span>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                <Link href="/login" style={{ fontSize: '13px', color: '#475569', textDecoration: 'none' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#94a3b8' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#475569' }}
+                >
+                  Sign In
+                </Link>
+                <Link href="/signup" style={{ fontSize: '13px', color: '#475569', textDecoration: 'none' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#94a3b8' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#475569' }}
+                >
+                  Sign Up
+                </Link>
+              </div>
+            </div>
+          </div>
+        </footer>
+
       </div>
-    </main>
+    </>
   )
 }

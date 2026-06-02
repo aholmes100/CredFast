@@ -9,7 +9,7 @@ const NAV_GROUPS = [
   {
     label: null,
     links: [
-      { href: '/', label: 'Dashboard' },
+      { href: '/dashboard', label: 'Dashboard' },
     ],
   },
   {

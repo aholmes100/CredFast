@@ -28,14 +28,16 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isAuthPath = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/reset-password' || pathname === '/accept-invite'
+  const isAuthPath   = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/reset-password' || pathname === '/accept-invite'
+  const isPublicPath = pathname === '/'
 
-  if (!user && !isAuthPath) {
+  if (!user && !isAuthPath && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && isAuthPath) {
-    return NextResponse.redirect(new URL('/', request.url))
+  // Authenticated users don't need the landing page or auth screens — send them to the app
+  if (user && (isAuthPath || isPublicPath)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return supabaseResponse
