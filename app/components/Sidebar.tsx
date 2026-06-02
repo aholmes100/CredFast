@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     label: 'Enrollment',
     links: [
       { href: '/applications', label: 'Applications' },
+      { href: '/reports',      label: '📊 Reports' },
       { href: '/payers',       label: 'Payers' },
       { href: '/payer-forms',  label: 'Payer Forms' },
     ],
