@@ -4,6 +4,7 @@ import { createClient } from '../../lib/supabase-server'
 import type { Provider } from '../../types'
 import ProviderEditor from '../../components/ProviderEditor'
 import DeleteButton from '../../components/DeleteButton'
+import DocumentList, { type ProviderDocument } from '../../components/DocumentList'
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
@@ -35,6 +36,11 @@ export default async function ProviderDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profileData } = await supabase.from('profiles').select('organization_id').single()
+  const orgId  = (profileData as { organization_id: string } | null)?.organization_id ?? ''
+  const userId = user?.id ?? ''
+
   const [
     { data, error },
     { data: assignmentRows },
@@ -58,15 +64,11 @@ export default async function ProviderDetailPage({
       .eq('provider_id', id)
       .order('created_at', { ascending: false })
       .limit(10),
-    // documents table may not exist yet — handle gracefully
     supabase
       .from('documents')
-      .select('*')
-      .eq('entity_type', 'provider')
-      .eq('entity_id', id)
-      .eq('is_current', true)
-      .order('uploaded_at', { ascending: false }),
-    // provider_licenses may not exist yet — handle gracefully
+      .select('id, name, type, file_path, file_size, mime_type, expiration_date, notes, created_at')
+      .eq('provider_id', id)
+      .order('created_at', { ascending: false }),
     supabase
       .from('provider_licenses')
       .select('*')
@@ -79,19 +81,13 @@ export default async function ProviderDetailPage({
   const provider = data as Provider
 
   type AssignmentRow = {
-    id: string
-    is_primary: boolean
-    is_active: boolean
+    id: string; is_primary: boolean; is_active: boolean
     groups: { id: string; name: string } | null
     locations: { id: string; name: string; address_1: string | null; city: string | null; state: string | null } | null
   }
   type AppRow = {
     id: string; status: string; created_at: string; submitted_at: string | null
     payers: { name: string } | null; groups: { name: string } | null
-  }
-  type DocRow = {
-    id: string; document_type: string; label: string | null; file_name: string
-    storage_path: string; expiration_date: string | null; uploaded_at: string; uploaded_by: string | null
   }
   type LicenseRow = {
     id: string; state: string; license_number: string; license_type: string
@@ -100,22 +96,12 @@ export default async function ProviderDetailPage({
 
   const assignments = (assignmentRows ?? []) as unknown as AssignmentRow[]
   const apps        = (appRows ?? []) as unknown as AppRow[]
-  const documents   = (docRows ?? []) as unknown as DocRow[]
+  const documents   = (docRows ?? []) as unknown as ProviderDocument[]
   const licenses    = (licenseRows ?? []) as unknown as LicenseRow[]
 
   const appStatusColors: Record<string, string> = {
     draft: '#64748b', ready: '#1d4ed8', submitted: '#b45309', approved: '#15803d',
   }
-
-  // Build signed URLs for documents
-  const docsWithUrls = await Promise.all(
-    documents.map(async (doc) => {
-      const { data: urlData } = await supabase.storage
-        .from('credfast-documents')
-        .createSignedUrl(doc.storage_path, 3600)
-      return { ...doc, signedUrl: urlData?.signedUrl ?? null }
-    })
-  )
 
   return (
     <main className="page-xl">
@@ -321,39 +307,18 @@ export default async function ProviderDetailPage({
             )}
           </div>
 
-          {/* Documents */}
-          <div className="card-lg">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p className="section-label" style={{ margin: 0 }}>Documents</p>
-              <Link href="/documents" style={{ fontSize: '11px', color: '#4f46e5', textDecoration: 'none' }}>View all</Link>
-            </div>
-            {docsWithUrls.length ? (
-              <div className="row-list">
-                {docsWithUrls.slice(0, 8).map((doc) => (
-                  <div key={doc.id} className="row-list-item" style={{ justifyContent: 'space-between' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 500, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {doc.label || doc.file_name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                        {doc.document_type.replace(/_/g, ' ')}
-                        {doc.expiration_date ? ` · exp ${fmtDate(doc.expiration_date)}` : ''}
-                      </div>
-                    </div>
-                    {doc.signedUrl && (
-                      <a href={doc.signedUrl} download style={{ fontSize: '11px', color: '#4f46e5', textDecoration: 'none', flexShrink: 0 }}>
-                        ↓
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>No documents on file.</div>
-            )}
-          </div>
-
         </div>
+      </div>
+
+      {/* ── Documents ─────────────────────────────────────────────────── */}
+      <div className="card-lg" style={{ marginTop: '16px' }}>
+        <p className="section-label">Documents</p>
+        <DocumentList
+          providerId={provider.id}
+          orgId={orgId}
+          userId={userId}
+          initialDocuments={documents}
+        />
       </div>
     </main>
   )
