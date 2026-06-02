@@ -16,7 +16,7 @@ const NAV_GROUPS = [
     label: 'Credentialing',
     links: [
       { href: '/providers',    label: 'Providers' },
-      { href: '/import',      label: '⬆️ Import' },
+      { href: '/import',      label: 'Import' },
       { href: '/groups',       label: 'Groups' },
       { href: '/locations',    label: 'Locations' },
       { href: '/assignments',  label: 'Assignments' },
@@ -26,7 +26,7 @@ const NAV_GROUPS = [
     label: 'Enrollment',
     links: [
       { href: '/applications', label: 'Applications' },
-      { href: '/reports',      label: '📊 Reports' },
+      { href: '/reports',      label: 'Reports' },
       { href: '/payers',       label: 'Payers' },
       { href: '/payer-forms',  label: 'Payer Forms' },
     ],
@@ -152,7 +152,7 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
               onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#0f172a' } }}
               onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#475569' } }}
             >
-              ⚙️ Settings
+              Settings
             </Link>
           )
         })()}
