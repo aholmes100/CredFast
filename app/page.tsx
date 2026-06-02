@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import Link from 'next/link'
 import WaitlistForm from './components/WaitlistForm'
 
@@ -561,8 +561,8 @@ export default function LandingPage() {
 
             <div className="lp-steps" style={{ maxWidth: '900px', margin: '0 auto' }}>
               {STEPS.map((step, i) => (
-                <>
-                  <div key={step.n} style={{ flex: 1, textAlign: 'center', padding: '0 16px' }}>
+                <Fragment key={step.n}>
+                  <div style={{ flex: 1, textAlign: 'center', padding: '0 16px' }}>
                     <div style={{
                       width: '52px',
                       height: '52px',
@@ -595,7 +595,7 @@ export default function LandingPage() {
                       marginTop: '26px',
                     }} />
                   )}
-                </>
+                </Fragment>
               ))}
             </div>
           </div>
