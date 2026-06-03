@@ -217,12 +217,15 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
       const headerRowIndex = template.header_row - 1 // 0-indexed
 
       // Map column header text → column index
-      const colIndexByField: Record<string, number> = {}
+      const colIndexByField: Record<string, number[]> = {}
       for (let col = range.s.c; col <= range.e.c; col++) {
         const addr = XLSX.utils.encode_cell({ r: headerRowIndex, c: col })
         const headerText = ws[addr]?.v?.toString() ?? ''
         const mappedField = template.column_mappings[headerText]
-        if (mappedField) colIndexByField[mappedField] = col
+        if (mappedField) {
+          if (!colIndexByField[mappedField]) colIndexByField[mappedField] = []
+          colIndexByField[mappedField].push(col)
+        }
       }
 
       // Fetch full provider data for selected providers
@@ -265,11 +268,13 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
         )
         const rowIndex = startRow + i
 
-        for (const [field, colIndex] of Object.entries(colIndexByField)) {
+        for (const [field, colIndexes] of Object.entries(colIndexByField)) {
           const value = rowData[field] ?? ''
           if (value !== '') {
-            const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })
-            ws[addr] = { t: 's', v: value }
+            for (const colIndex of colIndexes) {
+              const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex })
+              ws[addr] = { t: 's', v: value }
+            }
           }
         }
       })

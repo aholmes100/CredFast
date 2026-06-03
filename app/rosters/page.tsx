@@ -222,7 +222,6 @@ export default function RostersPage() {
     setColumnMappings(prev => {
       const next = { ...prev }
       if (!fieldKey) { delete next[header]; return next }
-      Object.keys(next).forEach(k => { if (next[k] === fieldKey) delete next[k] })
       next[header] = fieldKey
       return next
     })
