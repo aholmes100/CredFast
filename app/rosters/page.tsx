@@ -47,6 +47,14 @@ const ROSTER_FIELDS: RosterFieldDef[] = [
   { key: 'date_of_birth',           label: 'Date of Birth' },
   { key: 'network_effective_date',  label: 'Network Effective Date (leave blank)' },
   { key: 'pcp_or_specialist',       label: 'PCP or Specialist (leave blank)' },
+  { key: 'ssn',                     label: 'Social Security Number' },
+  { key: 'email',                   label: 'Provider Email' },
+  { key: 'medicaid_number',         label: 'Medicaid ID' },
+  { key: 'medicaid_state',          label: 'Medicaid State' },
+  { key: 'medicare_number',         label: 'Medicare PTAN' },
+  { key: 'credentialing_contact_name',  label: 'Credentialing Contact Name' },
+  { key: 'credentialing_contact_email', label: 'Credentialing Contact Email' },
+  { key: 'credentialing_contact_phone', label: 'Credentialing Contact Phone' },
 ]
 
 // ── Auto-map rules (Humana column headers → CredFast field keys) ───────────────
@@ -77,6 +85,15 @@ const ROSTER_AUTO_MAP: Record<string, string> = {
   'group/practice npi':                     'group_npi',
   'accepting new patients?':                'accepting_new_patients',
   'birth date':                             'date_of_birth',
+  'social security number':                 'ssn',
+  'ssn':                                    'ssn',
+  'email address':                          'email',
+  'email':                                  'email',
+  'medicaid#':                              'medicaid_number',
+  'medicaid number':                        'medicaid_number',
+  'medicaid# state':                        'medicaid_state',
+  'medicare ptan':                          'medicare_number',
+  'medicare':                               'medicare_number',
 }
 
 function autoMapHeader(header: string): string | null {
