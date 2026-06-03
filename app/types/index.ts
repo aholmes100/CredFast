@@ -110,6 +110,13 @@ export interface Location {
   accepts_medicare: boolean | null
   hours_mon_fri: string | null
   hours_weekend: string | null
+  hours_monday:    string | null
+  hours_tuesday:   string | null
+  hours_wednesday: string | null
+  hours_thursday:  string | null
+  hours_friday:    string | null
+  hours_saturday:  string | null
+  hours_sunday:    string | null
   // Mailing address (may differ from physical/service address)
   mailing_address_1: string | null
   mailing_address_2: string | null

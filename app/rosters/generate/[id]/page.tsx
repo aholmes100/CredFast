@@ -54,6 +54,13 @@ interface LocationRow {
   zip: string | null
   phone: string | null
   fax: string | null
+  hours_monday:    string | null
+  hours_tuesday:   string | null
+  hours_wednesday: string | null
+  hours_thursday:  string | null
+  hours_friday:    string | null
+  hours_saturday:  string | null
+  hours_sunday:    string | null
 }
 
 interface AssignmentRow {
@@ -159,6 +166,13 @@ function buildProviderRow(
     credentialing_contact_name:  formatField('credentialing_contact_name',  provider.credentialing_contact_name),
     credentialing_contact_email: formatField('credentialing_contact_email', provider.credentialing_contact_email),
     credentialing_contact_phone: formatField('credentialing_contact_phone', provider.credentialing_contact_phone),
+    hours_monday:                formatField('hours_monday',    location?.hours_monday),
+    hours_tuesday:               formatField('hours_tuesday',   location?.hours_tuesday),
+    hours_wednesday:             formatField('hours_wednesday', location?.hours_wednesday),
+    hours_thursday:              formatField('hours_thursday',  location?.hours_thursday),
+    hours_friday:                formatField('hours_friday',    location?.hours_friday),
+    hours_saturday:              formatField('hours_saturday',  location?.hours_saturday),
+    hours_sunday:                formatField('hours_sunday',    location?.hours_sunday),
     network_effective_date: '',
     pcp_or_specialist:      '',
   }
@@ -341,7 +355,7 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
           .select(
             'provider_id, location_id, ' +
             'groups(name, group_npi, tax_id, billing_address_1, billing_address_2, billing_city, billing_state, billing_zip, billing_phone), ' +
-            'locations(address_1, address_2, city, state, zip, phone, fax)'
+            'locations(address_1, address_2, city, state, zip, phone, fax, hours_monday, hours_tuesday, hours_wednesday, hours_thursday, hours_friday, hours_saturday, hours_sunday)'
           )
           .in('provider_id', selectedArr),
       ])

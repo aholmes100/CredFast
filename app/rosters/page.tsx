@@ -55,6 +55,13 @@ const ROSTER_FIELDS: RosterFieldDef[] = [
   { key: 'credentialing_contact_name',  label: 'Credentialing Contact Name' },
   { key: 'credentialing_contact_email', label: 'Credentialing Contact Email' },
   { key: 'credentialing_contact_phone', label: 'Credentialing Contact Phone' },
+  { key: 'hours_monday',    label: 'Monday Hours' },
+  { key: 'hours_tuesday',   label: 'Tuesday Hours' },
+  { key: 'hours_wednesday', label: 'Wednesday Hours' },
+  { key: 'hours_thursday',  label: 'Thursday Hours' },
+  { key: 'hours_friday',    label: 'Friday Hours' },
+  { key: 'hours_saturday',  label: 'Saturday Hours' },
+  { key: 'hours_sunday',    label: 'Sunday Hours' },
 ]
 
 // ── Auto-map rules (Humana column headers → CredFast field keys) ───────────────
@@ -94,6 +101,13 @@ const ROSTER_AUTO_MAP: Record<string, string> = {
   'medicaid# state':                        'medicaid_state',
   'medicare ptan':                          'medicare_number',
   'medicare':                               'medicare_number',
+  'monday hours':                           'hours_monday',
+  'tuesday hours':                          'hours_tuesday',
+  'wednesday hours':                        'hours_wednesday',
+  'thursday hours':                         'hours_thursday',
+  'friday hours':                           'hours_friday',
+  'saturday hours':                         'hours_saturday',
+  'sunday hours':                           'hours_sunday',
 }
 
 function autoMapHeader(header: string): string | null {

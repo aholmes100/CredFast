@@ -46,6 +46,13 @@ export default function LocationDetailEditor({ location }: Props) {
     facility_type:      location.facility_type ?? '',
     hours_mon_fri:      location.hours_mon_fri ?? '',
     hours_weekend:      location.hours_weekend ?? '',
+    hours_monday:       location.hours_monday    ?? '',
+    hours_tuesday:      location.hours_tuesday   ?? '',
+    hours_wednesday:    location.hours_wednesday ?? '',
+    hours_thursday:     location.hours_thursday  ?? '',
+    hours_friday:       location.hours_friday    ?? '',
+    hours_saturday:     location.hours_saturday  ?? '',
+    hours_sunday:       location.hours_sunday    ?? '',
     // Mailing address
     mailing_address_1:  location.mailing_address_1 ?? '',
     mailing_address_2:  location.mailing_address_2 ?? '',
@@ -77,6 +84,34 @@ export default function LocationDetailEditor({ location }: Props) {
     setIsDirty(true)
   }
 
+  const fillWeekdayHours = () => {
+    setForm(prev => ({
+      ...prev,
+      hours_monday:    '8:00 AM - 5:00 PM',
+      hours_tuesday:   '8:00 AM - 5:00 PM',
+      hours_wednesday: '8:00 AM - 5:00 PM',
+      hours_thursday:  '8:00 AM - 5:00 PM',
+      hours_friday:    '8:00 AM - 5:00 PM',
+      hours_saturday:  '',
+      hours_sunday:    '',
+    }))
+    setIsDirty(true)
+  }
+
+  const fill247 = () => {
+    setForm(prev => ({
+      ...prev,
+      hours_monday:    'Open 24 Hours',
+      hours_tuesday:   'Open 24 Hours',
+      hours_wednesday: 'Open 24 Hours',
+      hours_thursday:  'Open 24 Hours',
+      hours_friday:    'Open 24 Hours',
+      hours_saturday:  'Open 24 Hours',
+      hours_sunday:    'Open 24 Hours',
+    }))
+    setIsDirty(true)
+  }
+
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Location name is required.'); return }
     setSaving(true); setError(null); setJustSaved(false)
@@ -97,6 +132,13 @@ export default function LocationDetailEditor({ location }: Props) {
       facility_type:      toNull(form.facility_type),
       hours_mon_fri:      toNull(form.hours_mon_fri),
       hours_weekend:      toNull(form.hours_weekend),
+      hours_monday:       toNull(form.hours_monday),
+      hours_tuesday:      toNull(form.hours_tuesday),
+      hours_wednesday:    toNull(form.hours_wednesday),
+      hours_thursday:     toNull(form.hours_thursday),
+      hours_friday:       toNull(form.hours_friday),
+      hours_saturday:     toNull(form.hours_saturday),
+      hours_sunday:       toNull(form.hours_sunday),
       mailing_address_1:  toNull(form.mailing_address_1),
       mailing_address_2:  toNull(form.mailing_address_2),
       mailing_city:       toNull(form.mailing_city),
@@ -282,6 +324,42 @@ export default function LocationDetailEditor({ location }: Props) {
           <CheckField checked={!!form.accepts_medicare}     label="Accepts Medicare"       onChange={v => set('accepts_medicare', v)} />
           <CheckField checked={!!form.handicap_accessible}  label="Handicap Accessible"    onChange={v => set('handicap_accessible', v)} />
           <CheckField checked={!!form.is_active}            label="Location Active"        onChange={v => set('is_active', v)} />
+        </div>
+      </div>
+
+      {/* ── Office Hours ──────────────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <p className="section-label" style={{ margin: 0 }}>Office Hours</p>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={fillWeekdayHours}>
+              Weekday hours
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={fill247}>
+              24/7
+            </button>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          {([
+            ['Monday',    'hours_monday'],
+            ['Tuesday',   'hours_tuesday'],
+            ['Wednesday', 'hours_wednesday'],
+            ['Thursday',  'hours_thursday'],
+            ['Friday',    'hours_friday'],
+            ['Saturday',  'hours_saturday'],
+            ['Sunday',    'hours_sunday'],
+          ] as [string, keyof typeof form][]).map(([label, field]) => (
+            <div key={field} className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label">{label}</label>
+              <input
+                className="form-input"
+                value={form[field] as string}
+                onChange={e => set(field, e.target.value)}
+                placeholder="8:00 AM - 5:00 PM"
+              />
+            </div>
+          ))}
         </div>
       </div>
 
