@@ -478,13 +478,20 @@ export default function RostersPage() {
                   type="file"
                   accept=".xlsx,.xls"
                   onChange={handleFileChange}
-                  style={{ fontSize: '13px', color: '#475569' }}
+                  style={{ display: 'none' }}
                 />
-                {file && (
-                  <div style={{ marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
-                    Selected: <strong style={{ color: '#0f172a' }}>{file.name}</strong>
-                  </div>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    Choose File
+                  </button>
+                  <span style={{ fontSize: '13px', color: file ? '#0f172a' : '#94a3b8' }}>
+                    {file ? file.name : 'No file chosen — .xlsx or .xls only'}
+                  </span>
+                </div>
               </div>
 
               {workbook && (
