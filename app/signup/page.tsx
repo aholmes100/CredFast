@@ -1,17 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
+const PLAN_PRICE_IDS: Record<string, string> = {
+  starter:      process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER!,
+  practice:     process.env.NEXT_PUBLIC_STRIPE_PRICE_PRACTICE!,
+  professional: process.env.NEXT_PUBLIC_STRIPE_PRICE_PROFESSIONAL!,
+}
+
 export default function SignupPage() {
-  const router = useRouter()
-  const [orgName, setOrgName] = useState('')
-  const [email, setEmail] = useState('')
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const planSlug     = searchParams.get('plan') ?? ''
+
+  const [orgName,  setOrgName]  = useState('')
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
+  const [loading,  setLoading]  = useState(false)
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault()
@@ -30,7 +39,26 @@ export default function SignupPage() {
       return
     }
 
-    router.push('/')
+    // If a plan was passed, kick off the checkout flow immediately
+    const priceId = PLAN_PRICE_IDS[planSlug]
+    if (priceId) {
+      try {
+        const res = await fetch('/api/create-checkout-session', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ priceId }),
+        })
+        if (res.ok) {
+          const { url } = await res.json() as { url: string }
+          window.location.href = url
+          return
+        }
+      } catch {
+        // Fall through to dashboard if checkout fails — user can subscribe from billing page
+      }
+    }
+
+    router.push('/dashboard')
     router.refresh()
   }
 
@@ -56,7 +84,11 @@ export default function SignupPage() {
           <div style={{ fontWeight: 700, fontSize: '22px', color: '#0f172a', marginBottom: '4px' }}>
             CredFast
           </div>
-          <div style={{ fontSize: '14px', color: '#64748b' }}>Create your account</div>
+          <div style={{ fontSize: '14px', color: '#64748b' }}>
+            {planSlug
+              ? `Create your account to start the ${planSlug.charAt(0).toUpperCase() + planSlug.slice(1)} plan`
+              : 'Create your account'}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -137,7 +169,7 @@ export default function SignupPage() {
               transition: 'background-color 0.15s',
             }}
           >
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading ? (planSlug ? 'Creating account…' : 'Creating account…') : 'Create account'}
           </button>
         </form>
 

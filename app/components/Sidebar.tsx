@@ -133,16 +133,21 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Settings */}
+      {/* Settings + Billing */}
       <div style={{ padding: '8px 8px 4px', borderTop: '1px solid #e2e8f0' }}>
-        {(() => {
-          const isActive = pathname.startsWith('/settings')
+        {[
+          { href: '/settings', label: 'Settings' },
+          { href: '/billing',  label: 'Billing'  },
+        ].map(({ href, label }) => {
+          const isActive = pathname.startsWith(href)
           return (
             <Link
-              href="/settings"
+              key={href}
+              href={href}
               style={{
                 display: 'block',
                 padding: '7px 12px',
+                marginBottom: '1px',
                 borderRadius: '6px',
                 fontSize: '13px',
                 fontWeight: isActive ? 600 : 400,
@@ -153,10 +158,10 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
               onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#0f172a' } }}
               onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#475569' } }}
             >
-              Settings
+              {label}
             </Link>
           )
-        })()}
+        })}
       </div>
 
       {/* Footer */}

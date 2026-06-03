@@ -320,7 +320,21 @@ export default function LandingPage() {
             }}>
               CredFast
             </span>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <Link href="/pricing" style={{
+                fontSize: '14px',
+                fontWeight: 500,
+                color: navSolid ? '#475569' : '#94a3b8',
+                textDecoration: 'none',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = navSolid ? '#0f172a' : '#ffffff' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = navSolid ? '#475569' : '#94a3b8' }}
+              >
+                Pricing
+              </Link>
               <Link href="/login" style={{
                 fontSize: '14px',
                 fontWeight: 500,
@@ -456,8 +470,25 @@ export default function LandingPage() {
             </button>
           </div>
 
+          {/* Pricing link */}
+          <Link href="/pricing" style={{
+            marginTop: '16px',
+            fontSize: '13px',
+            color: '#64748b',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            transition: 'color 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#94a3b8' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#64748b' }}
+          >
+            See pricing →
+          </Link>
+
           {/* Social proof */}
-          <p style={{ marginTop: '22px', fontSize: '12px', color: '#334155', letterSpacing: '0.01em' }}>
+          <p style={{ marginTop: '14px', fontSize: '12px', color: '#334155', letterSpacing: '0.01em' }}>
             Currently in early access — join the waitlist
           </p>
         </section>

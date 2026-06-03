@@ -28,15 +28,19 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isAuthPath   = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/reset-password' || pathname === '/accept-invite'
-  const isPublicPath = pathname === '/'
+  const isAuthPath    = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password' || pathname === '/reset-password' || pathname === '/accept-invite'
+  // Paths that are publicly accessible regardless of auth state
+  const isPublicPage  = pathname === '/' || pathname === '/pricing'
+  // API paths that must be publicly accessible (Stripe webhooks, etc.)
+  const isPublicApi   = pathname.startsWith('/api/webhooks/')
 
-  if (!user && !isAuthPath && !isPublicPath) {
+  if (!user && !isAuthPath && !isPublicPage && !isPublicApi) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Authenticated users don't need the landing page or auth screens — send them to the app
-  if (user && (isAuthPath || isPublicPath)) {
+  // Authenticated users don't need the landing page or auth screens
+  // Pricing stays accessible so logged-in users can review/change their plan
+  if (user && (isAuthPath || pathname === '/')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
