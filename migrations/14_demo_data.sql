@@ -4,6 +4,13 @@
 -- organization_id: a0000000-0000-0000-0000-000000000001
 -- ================================================================
 
+-- ── Organization (must exist before any FK references it) ─────────
+
+INSERT INTO organizations (id, name)
+VALUES ('a0000000-0000-0000-0000-000000000001', 'Riverside Medical Group Demo')
+ON CONFLICT (id) DO NOTHING;
+
+
 -- ── Group ─────────────────────────────────────────────────────────
 
 INSERT INTO groups (
