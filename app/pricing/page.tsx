@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
@@ -80,6 +80,13 @@ function CheckIconMuted() {
 export default function PricingPage() {
   const [loadingSlug, setLoadingSlug] = useState<string | null>(null)
   const [error, setError]             = useState<string | null>(null)
+  const [isLoggedIn, setIsLoggedIn]   = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session)
+    })
+  }, [])
 
   const handleGetStarted = async (plan: typeof PLANS[0]) => {
     setError(null)
@@ -125,14 +132,20 @@ export default function PricingPage() {
           <Link href="/" style={{ fontWeight: 700, fontSize: '16px', color: '#ffffff', textDecoration: 'none', letterSpacing: '-0.025em' }}>
             CredFast
           </Link>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Link href="/login" style={{ fontSize: '14px', color: '#94a3b8', textDecoration: 'none', padding: '6px 14px', borderRadius: '6px' }}>
-              Sign In
+          {isLoggedIn ? (
+            <Link href="/dashboard" style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff', textDecoration: 'none', padding: '7px 16px', borderRadius: '6px', backgroundColor: '#4f46e5' }}>
+              Go to Dashboard
             </Link>
-            <Link href="/signup" style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff', textDecoration: 'none', padding: '7px 16px', borderRadius: '6px', backgroundColor: '#4f46e5' }}>
-              Sign Up
-            </Link>
-          </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Link href="/login" style={{ fontSize: '14px', color: '#94a3b8', textDecoration: 'none', padding: '6px 14px', borderRadius: '6px' }}>
+                Sign In
+              </Link>
+              <Link href="/signup" style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff', textDecoration: 'none', padding: '7px 16px', borderRadius: '6px', backgroundColor: '#4f46e5' }}>
+                Sign Up
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
