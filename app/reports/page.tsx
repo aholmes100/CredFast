@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
-import ExportButton from '../components/ExportButton'
+import ReportExportButton from './ReportExportButton'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function fmtDate(d: string | null | undefined) {
@@ -201,7 +201,17 @@ export default async function ReportsPage() {
       <div className="card-lg" style={{ marginBottom: '20px' }}>
         <div style={sectionHeader}>
           <p className="section-label" style={{ margin: 0 }}>Credential Expiration Report</p>
-          <ExportButton label="Export CSV" />
+          <ReportExportButton
+            label="Export CSV"
+            reportName="Expiration"
+            headers={['Provider', 'Credential', 'Expiration Date', 'Days Remaining']}
+            rows={expirationRows.map(r => [
+              r.name,
+              r.credential,
+              fmtDate(r.date),
+              r.daysUntil < 0 ? `Expired ${Math.abs(r.daysUntil)}d ago` : `${r.daysUntil} days`,
+            ])}
+          />
         </div>
 
         {expirationRows.length === 0 ? (
@@ -269,7 +279,18 @@ export default async function ReportsPage() {
       <div className="card-lg" style={{ marginBottom: '20px' }}>
         <div style={sectionHeader}>
           <p className="section-label" style={{ margin: 0 }}>Enrollment Pipeline</p>
-          <ExportButton label="Export CSV" />
+          <ReportExportButton
+            label="Export CSV"
+            reportName="Pipeline"
+            headers={['Provider', 'Payer', 'Group', 'Status', 'Last Updated']}
+            rows={recent.map(app => [
+              app.providers ? `${app.providers.first_name} ${app.providers.last_name}` : '',
+              app.payers?.name ?? '',
+              app.groups?.name ?? '',
+              app.status,
+              app.updated_at ? fmtDate(app.updated_at) : '',
+            ])}
+          />
         </div>
 
         {appTotal === 0 ? (
@@ -379,7 +400,16 @@ export default async function ReportsPage() {
       <div className="card-lg" style={{ marginBottom: '20px' }}>
         <div style={sectionHeader}>
           <p className="section-label" style={{ margin: 0 }}>Provider Completeness Report</p>
-          <ExportButton label="Export CSV" />
+          <ReportExportButton
+            label="Export CSV"
+            reportName="Completeness"
+            headers={['Provider', 'Missing Fields Count', 'Missing Fields']}
+            rows={incompleteProviders.map(p => [
+              p.name,
+              String(p.missingCount),
+              p.missingFields.join(', '),
+            ])}
+          />
         </div>
 
         {incompleteProviders.length === 0 ? (
@@ -448,7 +478,20 @@ export default async function ReportsPage() {
       <div className="card-lg" style={{ marginBottom: '20px' }}>
         <div style={sectionHeader}>
           <p className="section-label" style={{ margin: 0 }}>Payer Enrollment Summary</p>
-          <ExportButton label="Export CSV" />
+          <ReportExportButton
+            label="Export CSV"
+            reportName="PayerSummary"
+            headers={['Payer', 'Total', 'Draft', 'Ready', 'Submitted', 'Approved', 'Approval Rate']}
+            rows={payerSummary.map(ps => [
+              ps.payerName,
+              String(ps.total),
+              String(ps.draft),
+              String(ps.ready),
+              String(ps.submitted),
+              String(ps.approved),
+              `${ps.total > 0 ? Math.round((ps.approved / ps.total) * 100) : 0}%`,
+            ])}
+          />
         </div>
 
         {payerSummary.length === 0 ? (
