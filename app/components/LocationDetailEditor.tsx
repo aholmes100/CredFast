@@ -34,6 +34,7 @@ export default function LocationDetailEditor({ location }: Props) {
 
   const [form, setForm] = useState({
     name:               location.name,
+    group_npi_override: location.group_npi_override ?? '',
     group_id:           location.group_id ?? '',
     address_1:          location.address_1 ?? '',
     address_2:          location.address_2 ?? '',
@@ -120,6 +121,7 @@ export default function LocationDetailEditor({ location }: Props) {
 
     const { error: saveError } = await supabase.from('locations').update({
       name:               form.name,
+      group_npi_override: toNull(form.group_npi_override),
       group_id:           toNull(form.group_id),
       address_1:          toNull(form.address_1),
       address_2:          toNull(form.address_2),
@@ -174,7 +176,7 @@ export default function LocationDetailEditor({ location }: Props) {
           <input className="form-input" value={form.name}
             onChange={e => set('name', e.target.value)} placeholder="Main Office" />
         </div>
-        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+        <div className="form-row form-row-2" style={{ marginBottom: '10px' }}>
           <div className="form-field" style={{ marginBottom: 0 }}>
             <label className="form-label">Group</label>
             <select className="form-select" value={form.group_id}
@@ -197,6 +199,14 @@ export default function LocationDetailEditor({ location }: Props) {
               <option value="Other">Other</option>
             </select>
           </div>
+        </div>
+        <div className="form-field" style={{ marginBottom: 0 }}>
+          <label className="form-label">Group NPI Override</label>
+          <input className="form-input" value={form.group_npi_override}
+            onChange={e => set('group_npi_override', e.target.value)} placeholder="1234567890" />
+          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+            Overrides the group&apos;s default NPI for this location only. Leave blank to use the group NPI.
+          </p>
         </div>
       </div>
 

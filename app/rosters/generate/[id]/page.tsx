@@ -66,6 +66,7 @@ interface LocationRow {
 interface AssignmentRow {
   provider_id: string
   location_id: string
+  group_npi_override: string | null
   groups: GroupRow | null
   locations: LocationRow | null
 }
@@ -126,6 +127,7 @@ function buildProviderRow(
   provider: ProviderRow,
   group: GroupRow | null,
   location: LocationRow | null,
+  assignment?: AssignmentRow | null,
 ): Record<string, string> {
   return {
     first_name:                  formatField('first_name',                  provider.first_name),
@@ -157,7 +159,7 @@ function buildProviderRow(
     billing_zip:                 formatField('billing_zip',                 group?.billing_zip),
     billing_phone:               formatField('billing_phone',               group?.billing_phone),
     group_name:                  formatField('group_name',                  group?.name),
-    group_npi:                   formatField('group_npi',                   group?.group_npi),
+    group_npi:                   formatField('group_npi',                   assignment?.group_npi_override || group?.group_npi),
     accepting_new_patients:      formatField('accepting_new_patients',      provider.accepting_new_patients),
     date_of_birth:               formatField('date_of_birth',               provider.date_of_birth),
     medicaid_number:             formatField('medicaid_number',             provider.medicaid_number),
@@ -353,7 +355,7 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
         supabase
           .from('provider_group_locations')
           .select(
-            'provider_id, location_id, ' +
+            'provider_id, location_id, group_npi_override, ' +
             'groups(name, group_npi, tax_id, billing_address_1, billing_address_2, billing_city, billing_state, billing_zip, billing_phone), ' +
             'locations(address_1, address_2, city, state, zip, phone, fax, hours_monday, hours_tuesday, hours_wednesday, hours_thursday, hours_friday, hours_saturday, hours_sunday)'
           )
@@ -391,11 +393,11 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
 
         if (matchingAssigns.length === 0) {
           // Provider selected but no location assignments — write one row with blank address
-          writeRow(startRow + rowOffset, buildProviderRow(provider, null, null))
+          writeRow(startRow + rowOffset, buildProviderRow(provider, null, null, null))
           rowOffset++
         } else {
           for (const assign of matchingAssigns) {
-            writeRow(startRow + rowOffset, buildProviderRow(provider, assign.groups, assign.locations))
+            writeRow(startRow + rowOffset, buildProviderRow(provider, assign.groups, assign.locations, assign))
             rowOffset++
           }
         }

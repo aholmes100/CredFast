@@ -131,9 +131,31 @@ export async function POST(req: NextRequest) {
       .map((r: unknown) => (r as { locations: Location | null }).locations)
       .filter((l): l is Location => l !== null)
 
+    // Check for a group NPI override on any provider-location assignment for this application
+    const locationIds = (locationRows ?? []).map(
+      (r: unknown) => (r as { location_id: string }).location_id
+    ).filter(Boolean)
+
+    let effectiveGroupNpi = (groupData as Group).group_npi
+    if (locationIds.length > 0) {
+      const { data: overrideRow } = await supabase
+        .from('provider_group_locations')
+        .select('group_npi_override')
+        .eq('provider_id', app.provider_id)
+        .in('location_id', locationIds)
+        .not('group_npi_override', 'is', null)
+        .limit(1)
+        .maybeSingle()
+      if (overrideRow?.group_npi_override) {
+        effectiveGroupNpi = overrideRow.group_npi_override as string
+      }
+    }
+
+    const groupWithOverride: Group = { ...(groupData as Group), group_npi: effectiveGroupNpi }
+
     const payload: PdfFillPayload = {
       provider:    providerData as Provider,
-      group:       groupData    as Group,
+      group:       groupWithOverride,
       locations,
       application: app,
     }
