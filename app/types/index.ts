@@ -166,6 +166,7 @@ export interface EnrollmentApplication {
   effective_date: string | null
   payer_reference: string | null
   notes: string | null
+  enrollment_id: string | null   // FK to provider_payer_enrollments (migration 17)
   created_at: string
   updated_at: string | null
 }
@@ -465,4 +466,45 @@ export interface EnrollmentStatusHistoryEntry {
   changed_at: string
   changed_by: string | null
   notes: string | null
+}
+
+// ============================================================
+// Enrollment tracking (migration 17)
+// ============================================================
+
+export type EnrollmentStatus = 'in_queue' | 'in_progress' | 'enrolled' | 'inactive'
+export type EnrollmentNextAction = 'follow_up' | 'submit' | 'awaiting_approval' | 'none'
+
+export interface ProviderPayerEnrollment {
+  id: string
+  organization_id: string | null
+  provider_id: string
+  payer_id: string
+  status: EnrollmentStatus
+  next_action: EnrollmentNextAction
+  assigned_to: string | null
+  next_follow_up_date: string | null
+  submitted_at: string | null
+  approved_at: string | null
+  effective_date: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface EnrollmentActivityLog {
+  id: string
+  enrollment_id: string
+  organization_id: string | null
+  author_id: string | null
+  note: string
+  created_at: string
+}
+
+export interface EnrollmentWithPayer extends ProviderPayerEnrollment {
+  payers: Pick<Payer, 'id' | 'name'> | null
+}
+
+export interface TeamMember {
+  id: string
+  display_name: string | null
 }

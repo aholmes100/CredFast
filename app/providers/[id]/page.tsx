@@ -1,39 +1,34 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '../../lib/supabase-server'
-import type { Provider } from '../../types'
+import type { Provider, EnrollmentWithPayer } from '../../types'
 import ProviderEditor from '../../components/ProviderEditor'
 import DeleteButton from '../../components/DeleteButton'
 import DocumentList, { type ProviderDocument } from '../../components/DocumentList'
+import ProviderLocationsTab from '../../components/tabs/ProviderLocationsTab'
+import ProviderEnrollmentsTab from '../../components/tabs/ProviderEnrollmentsTab'
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function expirationBadge(dateStr: string | null | undefined, label: string) {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  const now = new Date()
-  const days = Math.ceil((d.getTime() - now.getTime()) / 86400000)
-  const expired = days < 0
-  const soon    = days >= 0 && days < 90
-  const color   = expired ? '#dc2626' : soon ? '#d97706' : '#15803d'
-  const bg      = expired ? '#fef2f2' : soon ? '#fffbeb' : '#f0fdf4'
-  const border  = expired ? '#fecaca' : soon ? '#fde68a' : '#bbf7d0'
-  return (
-    <span style={{ fontSize: '11px', fontWeight: 600, color, backgroundColor: bg, border: `1px solid ${border}`, borderRadius: '4px', padding: '2px 6px' }}>
-      {expired ? '⚠ Expired' : `${label} exp ${fmtDate(dateStr)}`}
-    </span>
-  )
-}
+const VALID_TABS = ['overview', 'locations', 'enrollments', 'documents'] as const
+type Tab = typeof VALID_TABS[number]
 
 export default async function ProviderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string }>
 }) {
   const { id } = await params
+  const rawTab = (await searchParams).tab
+  const tab: Tab = (VALID_TABS as readonly string[]).includes(rawTab ?? '')
+    ? (rawTab as Tab)
+    : 'overview'
+
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,26 +39,17 @@ export default async function ProviderDetailPage({
   const [
     { data, error },
     { data: assignmentRows },
-    { data: appRows },
     { data: docRows },
     { data: licenseRows },
+    { data: enrollmentRows },
+    { data: allPayerRows },
   ] = await Promise.all([
     supabase.from('providers').select('*').eq('id', id).single(),
     supabase
       .from('provider_group_locations')
-      .select(`
-        id, is_primary, is_active,
-        groups(id, name),
-        locations(id, name, address_1, city, state)
-      `)
+      .select(`id, is_primary, is_active, groups(id, name), locations(id, name, address_1, city, state)`)
       .eq('provider_id', id)
       .eq('is_active', true),
-    supabase
-      .from('enrollment_applications')
-      .select(`*, payers(name), groups(name)`)
-      .eq('provider_id', id)
-      .order('created_at', { ascending: false })
-      .limit(10),
     supabase
       .from('documents')
       .select('id, name, type, file_path, file_size, mime_type, expiration_date, notes, created_at')
@@ -74,20 +60,29 @@ export default async function ProviderDetailPage({
       .select('*')
       .eq('provider_id', id)
       .order('is_primary', { ascending: false }),
+    supabase
+      .from('provider_payer_enrollments')
+      .select('*, payers(id, name)')
+      .eq('provider_id', id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('payers')
+      .select('id, name')
+      .order('name'),
   ])
 
   if (error || !data) notFound()
 
-  const provider = data as Provider
+  const provider   = data as Provider
+  const documents  = (docRows ?? []) as unknown as ProviderDocument[]
+  const licenses   = (licenseRows ?? []) as unknown as LicenseRow[]
+  const enrollments = (enrollmentRows ?? []) as unknown as EnrollmentWithPayer[]
+  const allPayers  = (allPayerRows ?? []) as { id: string; name: string }[]
 
   type AssignmentRow = {
     id: string; is_primary: boolean; is_active: boolean
     groups: { id: string; name: string } | null
     locations: { id: string; name: string; address_1: string | null; city: string | null; state: string | null } | null
-  }
-  type AppRow = {
-    id: string; status: string; created_at: string; submitted_at: string | null
-    payers: { name: string } | null; groups: { name: string } | null
   }
   type LicenseRow = {
     id: string; state: string; license_number: string; license_type: string
@@ -95,13 +90,13 @@ export default async function ProviderDetailPage({
   }
 
   const assignments = (assignmentRows ?? []) as unknown as AssignmentRow[]
-  const apps        = (appRows ?? []) as unknown as AppRow[]
-  const documents   = (docRows ?? []) as unknown as ProviderDocument[]
-  const licenses    = (licenseRows ?? []) as unknown as LicenseRow[]
 
-  const appStatusColors: Record<string, string> = {
-    draft: '#64748b', ready: '#1d4ed8', submitted: '#b45309', approved: '#15803d',
-  }
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'overview',     label: 'Overview' },
+    { key: 'locations',    label: assignments.length  ? `Locations (${assignments.length})`    : 'Locations' },
+    { key: 'enrollments',  label: enrollments.length  ? `Enrollments (${enrollments.length})`  : 'Enrollments' },
+    { key: 'documents',    label: documents.length    ? `Documents (${documents.length})`      : 'Documents' },
+  ]
 
   return (
     <main className="page-xl">
@@ -112,10 +107,10 @@ export default async function ProviderDetailPage({
         <span className="breadcrumb-current">{provider.first_name} {provider.last_name}</span>
       </div>
 
-      {/* ── Page header ─────────────────────────────────────────────── */}
+      {/* Page header */}
       <div className="page-header" style={{ marginBottom: '20px' }}>
         <div>
-          <h1 className="page-title">{provider.first_name} {provider.last_name}</h1>
+          <h1 className="page-title">{provider.first_name} {provider.last_name}{provider.credential_suffix ? `, ${provider.credential_suffix}` : ''}</h1>
           <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             {provider.npi && <span className="pill">NPI {provider.npi}</span>}
             {provider.specialty && <span className="pill">{provider.specialty}</span>}
@@ -131,195 +126,154 @@ export default async function ProviderDetailPage({
         <DeleteButton table="providers" id={provider.id} label="Delete Provider" redirectTo="/providers" />
       </div>
 
-      {/* ── At-a-glance identifiers ──────────────────────────────────── */}
-      <div className="card-lg" style={{ marginBottom: '16px' }}>
-        <p className="section-label">Key Identifiers</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px', marginBottom: '12px' }}>
-          {[
-            { label: 'NPI',            value: provider.npi },
-            { label: 'CAQH',           value: provider.caqh_number },
-            { label: 'DEA',            value: provider.dea_number },
-            { label: 'Medicare PTAN',  value: provider.medicare_number },
-            { label: 'Medicaid #',     value: provider.medicaid_number },
-            { label: 'License',        value: provider.license_number ? `${provider.license_number}${provider.license_state ? ` (${provider.license_state})` : ''}` : null },
-            { label: 'Email',          value: provider.email },
-            { label: 'Date of Birth',  value: fmtDate(provider.date_of_birth) },
-          ].map(({ label, value }) => (
-            <dl key={label} className="data-item">
-              <dt>{label}</dt>
-              <dd style={{ color: value && value !== '—' ? '#0f172a' : '#94a3b8' }}>{value || '—'}</dd>
-            </dl>
-          ))}
-        </div>
+      {/* Tab bar */}
+      <nav className="tab-nav" style={{ marginBottom: '24px' }}>
+        {tabs.map(({ key, label }) => (
+          <Link
+            key={key}
+            href={`?tab=${key}`}
+            className={`tab-btn${tab === key ? ' tab-btn-active' : ''}`}
+            style={{ textDecoration: 'none' }}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
 
-      </div>
+      {/* ── Overview tab ───────────────────────────────────────────── */}
+      {tab === 'overview' && (
+        <div style={{ maxWidth: '860px' }}>
 
-      {/* ── Credential Status ────────────────────────────────────────── */}
-      <div className="card-lg" style={{ marginBottom: '16px' }}>
-        <p className="section-label">Credential Status</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {[
-            { label: 'Medical License',      date: provider.license_expiration,    detail: provider.license_number ? `${provider.license_number}${provider.license_state ? ` · ${provider.license_state}` : ''}` : null },
-            { label: 'Malpractice Insurance',date: provider.malpractice_expiration, detail: provider.malpractice_carrier ?? null },
-            { label: 'Board Certification',  date: provider.board_expiration,       detail: provider.board_specialty ?? null },
-            { label: 'DEA Registration',     date: null,                            detail: provider.dea_number ?? null },
-            { label: 'CAQH ProView',         date: null,                            detail: provider.caqh_number ?? null },
-          ].map(({ label, date, detail }) => {
-            // eslint-disable-next-line react-hooks/purity
-            const days = date ? Math.ceil((new Date(date).getTime() - Date.now()) / 86400000) : null
-            const expired = days !== null && days < 0
-            const soon    = days !== null && days >= 0 && days < 30
-            const upcoming= days !== null && days >= 30 && days < 90
-            const statusColor  = expired ? '#dc2626' : soon ? '#d97706' : upcoming ? '#b45309' : days !== null ? '#15803d' : '#94a3b8'
-            const statusBg     = expired ? '#fef2f2' : soon ? '#fef2f2' : upcoming ? '#fffbeb' : days !== null ? '#f0fdf4' : '#f8fafc'
-            const statusBorder = expired ? '#fecaca' : soon ? '#fecaca' : upcoming ? '#fde68a' : days !== null ? '#bbf7d0' : '#e2e8f0'
-            const statusLabel  = expired ? '⚠ Expired' : soon ? `Expires in ${days}d` : upcoming ? `Exp. ${fmtDate(date)}` : date ? `Current · exp ${fmtDate(date)}` : detail ? 'On file' : '—'
-            return (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>{label}</div>
-                  {detail && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{detail}</div>}
-                </div>
-                <span style={{
-                  flexShrink: 0, fontSize: '11px', fontWeight: 600,
-                  color: statusColor, backgroundColor: statusBg,
-                  border: `1px solid ${statusBorder}`,
-                  borderRadius: '5px', padding: '3px 8px',
-                }}>
-                  {statusLabel}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── Licenses (from provider_licenses table if migrated) ──────── */}
-      {licenses.length > 0 && (
-        <div className="card-lg" style={{ marginBottom: '16px' }}>
-          <p className="section-label">State Licenses</p>
-          <div className="row-list">
-            {licenses.map((lic) => (
-              <div key={lic.id} className="row-list-item">
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
-                    {lic.state} — {lic.license_number}
-                  </span>
-                  {lic.is_primary && (
-                    <span style={{ marginLeft: '8px', fontSize: '10px', color: '#4f46e5', backgroundColor: '#eef2ff', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                      Primary
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: '11px', color: '#64748b' }}>{lic.license_type}</span>
-                {lic.expiration_date && expirationBadge(lic.expiration_date, `${lic.state} exp`)}
-                <span style={{
-                  fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px',
-                  backgroundColor: lic.status === 'active' ? '#f0fdf4' : '#fef2f2',
-                  color: lic.status === 'active' ? '#15803d' : '#b91c1c',
-                }}>
-                  {lic.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Two-column: editor + sidebar ──────────────────────────────── */}
-      <div className="layout-two-col" style={{ marginBottom: '16px' }}>
-
-        {/* Main: editable form */}
-        <div>
-          <ProviderEditor provider={provider} />
-        </div>
-
-        {/* Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* Assignments */}
-          <div className="card-lg">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p className="section-label" style={{ margin: 0 }}>Assignments</p>
-              <Link href="/assignments/new" style={{ fontSize: '11px', color: '#4f46e5', textDecoration: 'none' }}>+ Add</Link>
+          {/* Key Identifiers */}
+          <div className="card-lg" style={{ marginBottom: '16px' }}>
+            <p className="section-label">Key Identifiers</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px', marginBottom: '12px' }}>
+              {[
+                { label: 'NPI',           value: provider.npi },
+                { label: 'CAQH',          value: provider.caqh_number },
+                { label: 'DEA',           value: provider.dea_number },
+                { label: 'Medicare PTAN', value: provider.medicare_number },
+                { label: 'Medicaid #',    value: provider.medicaid_number },
+                { label: 'License',       value: provider.license_number ? `${provider.license_number}${provider.license_state ? ` (${provider.license_state})` : ''}` : null },
+                { label: 'Email',         value: provider.email },
+                { label: 'Date of Birth', value: fmtDate(provider.date_of_birth) },
+              ].map(({ label, value }) => (
+                <dl key={label} className="data-item">
+                  <dt>{label}</dt>
+                  <dd style={{ color: value && value !== '—' ? '#0f172a' : '#94a3b8' }}>{value || '—'}</dd>
+                </dl>
+              ))}
             </div>
-            {assignments.length ? (
+          </div>
+
+          {/* Credential Status */}
+          <div className="card-lg" style={{ marginBottom: '16px' }}>
+            <p className="section-label">Credential Status</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[
+                { label: 'Medical License',       date: provider.license_expiration,    detail: provider.license_number ? `${provider.license_number}${provider.license_state ? ` · ${provider.license_state}` : ''}` : null },
+                { label: 'Malpractice Insurance', date: provider.malpractice_expiration, detail: provider.malpractice_carrier ?? null },
+                { label: 'Board Certification',   date: provider.board_expiration,       detail: provider.board_specialty ?? null },
+                { label: 'DEA Registration',      date: null,                            detail: provider.dea_number ?? null },
+                { label: 'CAQH ProView',          date: null,                            detail: provider.caqh_number ?? null },
+              ].map(({ label, date, detail }) => {
+                const days = date ? Math.ceil((new Date(date).getTime() - Date.now()) / 86400000) : null
+                const expired  = days !== null && days < 0
+                const soon     = days !== null && days >= 0 && days < 30
+                const upcoming = days !== null && days >= 30 && days < 90
+                const statusColor  = expired ? '#dc2626' : soon ? '#d97706' : upcoming ? '#b45309' : days !== null ? '#15803d' : '#94a3b8'
+                const statusBg     = expired ? '#fef2f2' : soon ? '#fef2f2' : upcoming ? '#fffbeb' : days !== null ? '#f0fdf4' : '#f8fafc'
+                const statusBorder = expired ? '#fecaca' : soon ? '#fecaca' : upcoming ? '#fde68a' : days !== null ? '#bbf7d0' : '#e2e8f0'
+                const statusLabel  = expired ? '⚠ Expired' : soon ? `Expires in ${days}d` : upcoming ? `Exp. ${fmtDate(date)}` : date ? `Current · exp ${fmtDate(date)}` : detail ? 'On file' : '—'
+                return (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>{label}</div>
+                      {detail && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{detail}</div>}
+                    </div>
+                    <span style={{ flexShrink: 0, fontSize: '11px', fontWeight: 600, color: statusColor, backgroundColor: statusBg, border: `1px solid ${statusBorder}`, borderRadius: '5px', padding: '3px 8px' }}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* State Licenses */}
+          {licenses.length > 0 && (
+            <div className="card-lg" style={{ marginBottom: '16px' }}>
+              <p className="section-label">State Licenses</p>
               <div className="row-list">
-                {assignments.map((a) => (
-                  <div key={a.id} className="row-list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', flex: 1 }}>
-                        {a.groups?.name || '—'}
+                {licenses.map((lic) => (
+                  <div key={lic.id} className="row-list-item">
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
+                        {lic.state} — {lic.license_number}
                       </span>
-                      {a.is_primary && (
-                        <span style={{ fontSize: '10px', color: '#4f46e5', backgroundColor: '#eef2ff', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                          Primary
-                        </span>
+                      {lic.is_primary && (
+                        <span style={{ marginLeft: '8px', fontSize: '10px', color: '#4f46e5', backgroundColor: '#eef2ff', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>Primary</span>
                       )}
                     </div>
-                    {a.locations && (
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>
-                        {a.locations.name}
-                        {a.locations.city && ` · ${a.locations.city}, ${a.locations.state}`}
-                      </div>
-                    )}
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>{lic.license_type}</span>
+                    {lic.expiration_date && (() => {
+                      const days = Math.ceil((new Date(lic.expiration_date).getTime() - Date.now()) / 86400000)
+                      const color = days < 0 ? '#dc2626' : days < 90 ? '#d97706' : '#15803d'
+                      const bg    = days < 0 ? '#fef2f2' : days < 90 ? '#fffbeb' : '#f0fdf4'
+                      const border= days < 0 ? '#fecaca' : days < 90 ? '#fde68a' : '#bbf7d0'
+                      return (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color, backgroundColor: bg, border: `1px solid ${border}`, borderRadius: '4px', padding: '2px 6px' }}>
+                          {days < 0 ? '⚠ Expired' : `exp ${fmtDate(lic.expiration_date)}`}
+                        </span>
+                      )
+                    })()}
+                    <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', backgroundColor: lic.status === 'active' ? '#f0fdf4' : '#fef2f2', color: lic.status === 'active' ? '#15803d' : '#b91c1c' }}>
+                      {lic.status}
+                    </span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                No assignments. <Link href="/assignments/new" style={{ color: '#4f46e5' }}>Create one</Link>
-              </div>
-            )}
-          </div>
-
-          {/* Recent applications */}
-          <div className="card-lg">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p className="section-label" style={{ margin: 0 }}>Applications</p>
-              <Link href="/applications/new" style={{ fontSize: '11px', color: '#4f46e5', textDecoration: 'none' }}>+ New</Link>
             </div>
-            {apps.length ? (
-              <div className="row-list">
-                {apps.map((a) => (
-                  <Link key={a.id} href={`/applications/${a.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="row-list-item" style={{ justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: 500, color: '#0f172a' }}>
-                          {a.payers?.name || '—'}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>{a.groups?.name || '—'}</div>
-                      </div>
-                      <span style={{
-                        fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '9999px',
-                        color: appStatusColors[a.status] ?? '#64748b',
-                        backgroundColor: '#f8fafc',
-                        textTransform: 'capitalize',
-                      }}>
-                        {a.status}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>No applications yet.</div>
-            )}
-          </div>
+          )}
 
+          {/* Editable provider fields */}
+          <ProviderEditor provider={provider} />
         </div>
-      </div>
+      )}
 
-      {/* ── Documents ─────────────────────────────────────────────────── */}
-      <div className="card-lg" style={{ marginTop: '16px' }}>
-        <p className="section-label">Documents</p>
-        <DocumentList
-          providerId={provider.id}
+      {/* ── Locations tab ──────────────────────────────────────────── */}
+      {tab === 'locations' && (
+        <ProviderLocationsTab
+          providerId={id}
           orgId={orgId}
-          userId={userId}
-          initialDocuments={documents}
+          initialAssignments={assignments as AssignmentRow[]}
         />
-      </div>
+      )}
+
+      {/* ── Enrollments tab ────────────────────────────────────────── */}
+      {tab === 'enrollments' && (
+        <ProviderEnrollmentsTab
+          providerId={id}
+          orgId={orgId}
+          initialEnrollments={enrollments}
+          allPayers={allPayers}
+        />
+      )}
+
+      {/* ── Documents tab ──────────────────────────────────────────── */}
+      {tab === 'documents' && (
+        <div style={{ maxWidth: '860px' }}>
+          <div className="card-lg">
+            <p className="section-label">Documents</p>
+            <DocumentList
+              providerId={provider.id}
+              orgId={orgId}
+              userId={userId}
+              initialDocuments={documents}
+            />
+          </div>
+        </div>
+      )}
     </main>
   )
 }

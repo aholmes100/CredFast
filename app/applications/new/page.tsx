@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
@@ -16,10 +17,20 @@ export default function NewApplicationPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [providerId, setProviderId] = useState('')
   const [groupId, setGroupId] = useState('')
+  const [payerId, setPayerId] = useState('')
   const [locationMode, setLocationMode] = useState<LocationMode>('all')
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
 
   useEffect(() => {
+    // Pre-fill provider/payer from URL params if navigated from enrollment detail
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const preProvider = params.get('provider_id')
+      const prePayer    = params.get('payer_id')
+      if (preProvider) setProviderId(preProvider)
+      if (prePayer)    setPayerId(prePayer)
+    }
+
     Promise.all([
       supabase.from('providers').select('*').order('last_name', { ascending: true }),
       supabase.from('groups').select('*').order('name', { ascending: true }),
@@ -54,8 +65,8 @@ export default function NewApplicationPage() {
     )
   }
 
-  async function handleSubmit(formData: FormData) {
-    const payerId = formData.get('payer_id') as string
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
     if (!providerId || !groupId || !payerId) {
       alert('Please select provider, group, and payer.'); return
     }
@@ -89,7 +100,7 @@ export default function NewApplicationPage() {
       <h1 className="page-title" style={{ marginBottom: '20px' }}>New Application</h1>
 
       <div className="form-card">
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <div className="form-field">
             <label className="form-label">Provider</label>
             <select className="form-select" value={providerId} onChange={(e) => setProviderId(e.target.value)}>
@@ -110,7 +121,7 @@ export default function NewApplicationPage() {
           </div>
           <div className="form-field">
             <label className="form-label">Payer</label>
-            <select className="form-select" name="payer_id">
+            <select className="form-select" value={payerId} onChange={e => setPayerId(e.target.value)}>
               <option value="">Select Payer</option>
               {payers.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
