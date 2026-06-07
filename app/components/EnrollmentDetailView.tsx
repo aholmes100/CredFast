@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import type { EnrollmentActivityLog, TeamMember, EnrollmentStatus, EnrollmentNextAction } from '../types'
@@ -121,6 +121,23 @@ export default function EnrollmentDetailView({
   const [newNote,    setNewNote]    = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [noteError,  setNoteError]  = useState<string | null>(null)
+
+  // Roster templates for this payer
+  const [rosterTemplates, setRosterTemplates] = useState<{ id: string; name: string }[]>([])
+  const [loadingRosters,  setLoadingRosters]  = useState(true)
+
+  useEffect(() => {
+    if (!enrollment.payer_id) { setLoadingRosters(false); return }
+    supabase
+      .from('roster_templates')
+      .select('id, name')
+      .eq('payer_id', enrollment.payer_id)
+      .order('name')
+      .then(({ data }) => {
+        setRosterTemplates((data ?? []) as { id: string; name: string }[])
+        setLoadingRosters(false)
+      })
+  }, [enrollment.payer_id])
 
   const markDirty = () => setIsDirty(true)
 
@@ -311,6 +328,38 @@ export default function EnrollmentDetailView({
                       </span>
                     </div>
                   </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Rosters */}
+          <div className="card-lg">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <p className="section-label" style={{ margin: 0 }}>Rosters</p>
+            </div>
+            {loadingRosters ? (
+              <div style={{ fontSize: '13px', color: '#94a3b8', padding: '8px 0' }}>Loading…</div>
+            ) : rosterTemplates.length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#94a3b8', padding: '12px 0' }}>
+                No roster templates linked to this payer.{' '}
+                <Link href="/rosters" style={{ color: '#4f46e5', textDecoration: 'none' }}>
+                  Tag a template from the Rosters page.
+                </Link>
+              </div>
+            ) : (
+              <div className="row-list">
+                {rosterTemplates.map(t => (
+                  <div key={t.id} className="row-list-item" style={{ justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>{t.name}</span>
+                    <Link
+                      href={`/rosters/generate/${t.id}?provider_id=${providerId}`}
+                      className="btn btn-secondary btn-sm"
+                      style={{ textDecoration: 'none', flexShrink: 0 }}
+                    >
+                      Generate
+                    </Link>
+                  </div>
                 ))}
               </div>
             )}

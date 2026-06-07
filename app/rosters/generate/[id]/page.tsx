@@ -195,6 +195,7 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading]             = useState(true)
   const [generating, setGenerating]       = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [preSelectId, setPreSelectId]     = useState<string | null>(null)
 
   // ── Load data ────────────────────────────────────────────────────────────────
 
@@ -237,7 +238,27 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
     setLoading(false)
   }, [templateId])
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pid = new URLSearchParams(window.location.search).get('provider_id')
+      if (pid) setPreSelectId(pid)
+    }
+  }, [])
+
   useEffect(() => { loadData() }, [loadData])
+
+  // Pre-select provider from URL param once data is loaded
+  useEffect(() => {
+    if (loading || !preSelectId || selectedIds.has(preSelectId)) return
+    const locs = providerLocMap.get(preSelectId) ?? []
+    setSelectedIds(prev => { const next = new Set(prev); next.add(preSelectId); return next })
+    setSelectedLocations(prev => {
+      const next = new Map(prev)
+      next.set(preSelectId, new Set(locs.map(l => l.id)))
+      return next
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, preSelectId])
 
   // ── Selection helpers ────────────────────────────────────────────────────────
 
