@@ -56,7 +56,17 @@ const DATA_PATHS: Record<string, string[]> = {
     'accepts_medicaid','accepts_medicare','hours_mon_fri','hours_weekend',
   ],
   application: ['status','submitted_at','approved_at','effective_date','payer_reference'],
+  // Static / literal values — resolved from the payer form config, not provider data
+  static: ['overflow'],
 }
+
+const LOCATION_SLOT_LABELS = [
+  'Primary (1st)',
+  'Slot 2',
+  'Slot 3',
+  'Slot 4',
+  'Slot 5',
+]
 
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
 const PIN_COLORS = ['#4f46e5','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#a16207']
@@ -77,11 +87,15 @@ function buildKey(page: number, x: number, y: number, size: number): string {
 }
 
 function fieldLabel(path: string) {
+  // location.N.field → "loc[N+1]: field"
+  const locSlot = path.match(/^location\.(\d+)\.(.+)$/)
+  if (locSlot) return `loc[${parseInt(locSlot[1]) + 1}]: ${locSlot[2]}`
   return path
     .replace('provider.', '')
     .replace('group.', 'grp: ')
     .replace('location.', 'loc: ')
     .replace('application.', 'app: ')
+    .replace('static.', '')
 }
 
 // Raw page dimensions + base scale (before zoom)
@@ -144,6 +158,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   // Active placement tool
   const [activeCategory, setActiveCategory] = useState('provider')
   const [activeField,    setActiveField]    = useState(DATA_PATHS['provider'][0])
+  const [locationSlot,   setLocationSlot]   = useState(0)  // slot index for location category
   const [fontSize,       setFontSize]       = useState(9)
 
   // Selection + drag
@@ -345,6 +360,12 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  // ── Build the data path for the currently active tool ──────────────────────
+  const buildActivePath = () =>
+    activeCategory === 'location'
+      ? `location.${locationSlot}.${activeField}`
+      : `${activeCategory}.${activeField}`
+
   // ── Place pin on canvas click ───────────────────────────────────────────────
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>, pageInfo: PageInfo) => {
     if (dragStateRef.current?.hasMoved) return
@@ -352,7 +373,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     const pdfX = (e.clientX - rect.left)  / pageInfo.scale
     const pdfY = (e.clientY - rect.top)   / pageInfo.scale
     const key  = buildKey(pageInfo.pageNum, pdfX, pdfY, fontSize)
-    setMappings(prev => ({ ...prev, [key]: `${activeCategory}.${activeField}` }))
+    setMappings(prev => ({ ...prev, [key]: buildActivePath() }))
     setSelectedKey(key)
     setIsDirty(true)
   }
@@ -381,9 +402,10 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   }
 
   // ── Update selected pin's data path ────────────────────────────────────────
-  const updateSelectedField = (cat: string, field: string) => {
+  const updateSelectedField = (cat: string, field: string, slot = 0) => {
     if (!selectedKey) return
-    setMappings(prev => ({ ...prev, [selectedKey]: `${cat}.${field}` }))
+    const path = cat === 'location' ? `location.${slot}.${field}` : `${cat}.${field}`
+    setMappings(prev => ({ ...prev, [selectedKey]: path }))
     setIsDirty(true)
   }
 
@@ -446,9 +468,21 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     PIN_COLORS[mappingEntries.findIndex(([k]) => k === key) % PIN_COLORS.length]
 
   const selectedPath  = selectedKey ? mappings[selectedKey] : null
-  const selCat        = selectedPath ? selectedPath.split('.')[0] : null
-  const selField      = selectedPath ? selectedPath.split('.').slice(1).join('.') : null
   const selectedCoord = selectedKey ? parseKey(selectedKey) : null
+
+  // Parse category, slot index, and field from the selected path
+  const selCat = selectedPath ? selectedPath.split('.')[0] : null
+  let selSlot  = 0
+  let selField: string | null = null
+  if (selectedPath && selCat) {
+    const parts = selectedPath.split('.')
+    if (selCat === 'location' && parts.length >= 3 && /^\d+$/.test(parts[1])) {
+      selSlot  = parseInt(parts[1], 10)
+      selField = parts.slice(2).join('.')
+    } else {
+      selField = parts.slice(1).join('.')
+    }
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: '16px', alignItems: 'start' }}>
@@ -598,7 +632,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                         fontWeight: 600, color: 'rgba(79,70,229,0.7)',
                         whiteSpace: 'nowrap', lineHeight: 1,
                       }}>
-                        {activeField}
+                        {fieldLabel(buildActivePath())}
                       </div>
                     </>
                   )}
@@ -678,10 +712,26 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
           <div className="form-field">
             <label className="form-label">Category</label>
             <select className="form-select" value={activeCategory}
-              onChange={e => { setActiveCategory(e.target.value); setActiveField(DATA_PATHS[e.target.value][0]) }}>
+              onChange={e => {
+                setActiveCategory(e.target.value)
+                setActiveField(DATA_PATHS[e.target.value][0])
+                if (e.target.value !== 'location') setLocationSlot(0)
+              }}>
               {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+
+          {activeCategory === 'location' && (
+            <div className="form-field">
+              <label className="form-label">Location slot</label>
+              <select className="form-select" value={locationSlot}
+                onChange={e => setLocationSlot(parseInt(e.target.value, 10))}>
+                {LOCATION_SLOT_LABELS.map((label, i) => (
+                  <option key={i} value={i}>{label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-field">
             <label className="form-label">Field</label>
@@ -705,7 +755,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
         </div>
 
         {/* Selected pin editor */}
-        {selectedKey && selCat && selField && selectedCoord && (
+        {selectedKey && selCat && selField !== null && selectedCoord && (
           <div style={{
             backgroundColor: '#fff',
             border: `2px solid ${colorForKey(selectedKey)}`,
@@ -732,14 +782,28 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
             <div className="form-field">
               <label className="form-label">Category</label>
               <select className="form-select" value={selCat}
-                onChange={e => updateSelectedField(e.target.value, DATA_PATHS[e.target.value][0])}>
+                onChange={e => {
+                  const newCat = e.target.value
+                  updateSelectedField(newCat, DATA_PATHS[newCat][0], newCat === 'location' ? selSlot : 0)
+                }}>
                 {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            {selCat === 'location' && (
+              <div className="form-field">
+                <label className="form-label">Location slot</label>
+                <select className="form-select" value={selSlot}
+                  onChange={e => updateSelectedField('location', selField, parseInt(e.target.value, 10))}>
+                  {LOCATION_SLOT_LABELS.map((label, i) => (
+                    <option key={i} value={i}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="form-field">
               <label className="form-label">Field</label>
               <select className="form-select" value={selField}
-                onChange={e => updateSelectedField(selCat, e.target.value)}>
+                onChange={e => updateSelectedField(selCat, e.target.value, selCat === 'location' ? selSlot : 0)}>
                 {DATA_PATHS[selCat]?.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>

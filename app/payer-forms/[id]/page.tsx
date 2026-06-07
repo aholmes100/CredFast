@@ -5,6 +5,7 @@ import type { PayerFormWithPayer } from '../../types'
 import PdfFieldMapper from '../../components/PdfFieldMapper'
 import FieldMappingsEditor from '../../components/FieldMappingsEditor'
 import PdfUploader from '../../components/PdfUploader'
+import PdfTypeConfig from '../../components/PdfTypeConfig'
 import DeleteButton from '../../components/DeleteButton'
 
 export default async function PayerFormDetailPage({
@@ -51,6 +52,25 @@ export default async function PayerFormDetailPage({
           </div>
         </div>
         <DeleteButton table="payer_forms" id={form.id} label="Delete Form" redirectTo="/payer-forms" />
+      </div>
+
+      {/* PDF type configuration */}
+      <div className="card-lg" style={{ marginBottom: '16px' }}>
+        <p className="section-label">Location Behavior</p>
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px' }}>
+          Configure how this form handles multiple locations. &quot;Single&quot; fills only the primary location.
+          &quot;Fixed slots&quot; fills up to N slots then puts overflow text in the last slot (Sagamore, Cigna).
+          &quot;Repeating page&quot; clones a page for every N extra locations (MHS, CareSource).
+        </p>
+        <PdfTypeConfig
+          formId={form.id}
+          initialPdfType={form.pdf_type ?? 'single'}
+          initialRepeatingPageIndex={form.repeating_page_index ?? null}
+          initialLocationsPerPage={form.locations_per_page ?? 2}
+          initialStaticPages={form.static_pages ?? null}
+          initialLocationSlotCount={form.location_slot_count ?? null}
+          initialOverflowText={form.overflow_text ?? 'See attached letter'}
+        />
       </div>
 
       {/* No PDF yet — show uploader */}

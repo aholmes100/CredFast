@@ -13,10 +13,20 @@ import type { PdfFillPayload, Provider, Group, Location, EnrollmentApplication }
 //   provider.accepting_new_patients_yes → "X" when accepting_new_patients is true
 //   provider.accepting_new_patients_no  → "X" when accepting_new_patients is false
 //
+//   location.field     → primary location (index 0), legacy format
+//   location.N.field   → location at slot index N (0 = primary, 1 = 2nd, etc.)
+//   static.overflow    → payload.overflow_text (the "See attached letter" placeholder)
+//
 // For plain boolean columns the fallback returns "Yes" / "No".
 function resolvePath(path: string, payload: PdfFillPayload): string {
   const [prefix, ...rest] = path.split('.')
   const field = rest.join('.')
+
+  // ── Static / literal values ────────────────────────────────────────────────
+  if (prefix === 'static') {
+    if (field === 'overflow') return payload.overflow_text
+    return ''
+  }
 
   // ── Computed provider paths ────────────────────────────────────────────────
   if (prefix === 'provider') {
@@ -35,6 +45,21 @@ function resolvePath(path: string, payload: PdfFillPayload): string {
     if (field === 'is_pcp_no')                   return p.is_pcp !== true  ? 'X' : ''
     if (field === 'accepting_new_patients_yes')   return p.accepting_new_patients === true  ? 'X' : ''
     if (field === 'accepting_new_patients_no')    return p.accepting_new_patients !== true  ? 'X' : ''
+  }
+
+  // ── Slot-indexed location: "location.N.field" → locations[N] ──────────────
+  if (prefix === 'location') {
+    const slotMatch = field.match(/^(\d+)\.(.+)$/)
+    if (slotMatch) {
+      const slotIndex = parseInt(slotMatch[1], 10)
+      const slotField = slotMatch[2]
+      const loc = (payload.locations[slotIndex] ?? null) as unknown as Record<string, unknown> | null
+      if (!loc) return ''
+      const val = loc[slotField]
+      if (val === null || val === undefined) return ''
+      if (typeof val === 'boolean') return val ? 'Yes' : 'No'
+      return String(val)
+    }
   }
 
   // ── Raw column lookup ──────────────────────────────────────────────────────
@@ -154,10 +179,11 @@ export async function POST(req: NextRequest) {
     const groupWithOverride: Group = { ...(groupData as Group), group_npi: effectiveGroupNpi }
 
     const payload: PdfFillPayload = {
-      provider:    providerData as Provider,
-      group:       groupWithOverride,
+      provider:     providerData as Provider,
+      group:        groupWithOverride,
       locations,
-      application: app,
+      application:  app,
+      overflow_text: (formData.overflow_text as string | null) ?? 'See attached letter',
     }
 
     // ── 2. Download PDF template ───────────────────────────────────────────────

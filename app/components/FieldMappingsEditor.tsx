@@ -33,7 +33,10 @@ const DATA_PATHS: Record<string, string[]> = {
   application: [
     'status', 'submitted_at', 'approved_at', 'effective_date', 'payer_reference',
   ],
+  static: ['overflow'],
 }
+
+const LOCATION_SLOT_LABELS = ['Primary (1st)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5']
 
 interface DetectedField { name: string; type: string }
 
@@ -58,6 +61,7 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
   // Shared
   const [newCategory,  setNewCategory]  = useState('provider')
   const [newDataField, setNewDataField] = useState(DATA_PATHS['provider'][0])
+  const [locationSlot, setLocationSlot] = useState(0)
   const [saving,       setSaving]       = useState(false)
   const [isDirty,      setIsDirty]      = useState(false)
   const [justSaved,    setJustSaved]    = useState(false)
@@ -121,7 +125,9 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
       key = buildCoordKey()
       if (!key) { setError('Enter X and Y coordinates.'); return }
     }
-    const path = `${newCategory}.${newDataField}`
+    const path = newCategory === 'location'
+      ? `location.${locationSlot}.${newDataField}`
+      : `${newCategory}.${newDataField}`
     setMappings(prev => ({ ...prev, [key]: path }))
     if (inputMode === 'acroform') setNewPdfField('')
     else { setCoordX(''); setCoordY('') }
@@ -292,10 +298,15 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
               </div>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">Data field</label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <select className="form-select" value={newCategory} onChange={(e) => { setNewCategory(e.target.value); setNewDataField(DATA_PATHS[e.target.value][0]) }} style={{ flex: '0 0 auto', width: '110px' }}>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  <select className="form-select" value={newCategory} onChange={(e) => { setNewCategory(e.target.value); setNewDataField(DATA_PATHS[e.target.value][0]); if (e.target.value !== 'location') setLocationSlot(0) }} style={{ flex: '0 0 auto', width: '110px' }}>
                     {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
+                  {newCategory === 'location' && (
+                    <select className="form-select" value={locationSlot} onChange={(e) => setLocationSlot(parseInt(e.target.value, 10))} style={{ flex: '0 0 auto', width: '110px' }}>
+                      {LOCATION_SLOT_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+                    </select>
+                  )}
                   <select className="form-select" value={newDataField} onChange={(e) => setNewDataField(e.target.value)}>
                     {DATA_PATHS[newCategory].map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
@@ -305,23 +316,31 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
             </div>
             {coordX && coordY && (
               <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                Will place <code style={{ color: '#7c3aed' }}>{newCategory}.{newDataField}</code> at coordinate key <code style={{ color: '#7c3aed' }}>{buildCoordKey() || '…'}</code>
+                Will place <code style={{ color: '#7c3aed' }}>{newCategory === 'location' ? `location.${locationSlot}.${newDataField}` : `${newCategory}.${newDataField}`}</code> at coordinate key <code style={{ color: '#7c3aed' }}>{buildCoordKey() || '…'}</code>
               </p>
             )}
           </>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: newCategory === 'location' ? '1fr 1fr 1fr 1fr auto' : '1fr 1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">PDF Field Name</label>
                 <input className="form-input" value={newPdfField} onChange={(e) => setNewPdfField(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMapping()} placeholder="e.g. Last_Name" />
               </div>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">Category</label>
-                <select className="form-select" value={newCategory} onChange={(e) => { setNewCategory(e.target.value); setNewDataField(DATA_PATHS[e.target.value][0]) }}>
+                <select className="form-select" value={newCategory} onChange={(e) => { setNewCategory(e.target.value); setNewDataField(DATA_PATHS[e.target.value][0]); if (e.target.value !== 'location') setLocationSlot(0) }}>
                   {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              {newCategory === 'location' && (
+                <div className="form-field" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Slot</label>
+                  <select className="form-select" value={locationSlot} onChange={(e) => setLocationSlot(parseInt(e.target.value, 10))}>
+                    {LOCATION_SLOT_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">Field</label>
                 <select className="form-select" value={newDataField} onChange={(e) => setNewDataField(e.target.value)}>

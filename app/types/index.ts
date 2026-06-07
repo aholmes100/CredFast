@@ -185,10 +185,12 @@ export interface EnrollmentApplicationLocation {
  *   { "PDF_FieldName": "provider.npi", "TaxID": "group.tax_id", ... }
  *
  * Supported data path prefixes:
- *   provider.*    → Provider columns
- *   group.*       → Group columns
- *   location.*    → Location columns (first/primary)
- *   application.* → EnrollmentApplication columns
+ *   provider.*      → Provider columns
+ *   group.*         → Group columns
+ *   location.field  → Primary location (index 0) — legacy format
+ *   location.N.field→ Location at slot index N (0 = primary, 1 = 2nd, etc.)
+ *   application.*   → EnrollmentApplication columns
+ *   static.overflow → Resolves to overflow_text when location count exceeds slot count
  */
 export interface PayerForm {
   id: string
@@ -197,6 +199,13 @@ export interface PayerForm {
   description: string | null
   storage_path: string | null
   field_mappings: Record<string, string>
+  // Multi-location config (added in migration 16)
+  pdf_type: 'single' | 'fixed' | 'repeating'
+  repeating_page_index: number | null   // 0-indexed page that clones for overflow locations
+  locations_per_page: number            // location slots per repeating page (default 2)
+  static_pages: number[] | null         // 0-indexed pages filled once (not cloned)
+  location_slot_count: number | null    // for 'fixed': max slots before overflow
+  overflow_text: string                 // for 'fixed': text placed in overflow slot
   is_active: boolean
   created_at: string
   updated_at: string | null
@@ -269,6 +278,7 @@ export interface PdfFillPayload {
   group: Group
   locations: Location[]
   application: EnrollmentApplication
+  overflow_text: string   // from payer_forms.overflow_text; used by static.overflow path
 }
 
 // ============================================================
