@@ -209,17 +209,20 @@ export async function POST(req: NextRequest) {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const pages = pdfDoc.getPages()
 
-    // Try AcroForm filling first (works on truly fillable PDFs)
-    try {
-      const pdfForm = pdfDoc.getForm()
+    // Try AcroForm filling first (works on truly fillable PDFs).
+    // getForm() is isolated so a PDF-without-AcroForm error doesn't swallow the loop.
+    let pdfForm: ReturnType<typeof pdfDoc.getForm> | null = null
+    try { pdfForm = pdfDoc.getForm() } catch { /* flat PDF — no AcroForm */ }
+
+    if (pdfForm) {
       for (const pdfField of pdfForm.getFields()) {
         const fieldName = pdfField.getName()
         const dataPath  = mappings[fieldName]
         if (!dataPath) continue
         const value = resolvePath(dataPath, payload)
-        try { pdfForm.getTextField(fieldName).setText(value) } catch { /* not a text field */ }
+        try { pdfForm.getTextField(fieldName).setText(value) } catch { /* checkbox / not a text field */ }
       }
-    } catch { /* PDF has no AcroForm — fine, we'll use coordinates below */ }
+    }
 
     // Coordinate-based text overlay (works on any PDF)
     for (const [fieldName, dataPath] of Object.entries(mappings)) {
@@ -244,6 +247,106 @@ export async function POST(req: NextRequest) {
         font,
         color: rgb(0, 0, 0),
       })
+    }
+
+    // ── 4. Repeating page cloning for overflow locations ──────────────────────
+    // When pdf_type === 'repeating', the base form already covers:
+    //   - slot 0 (primary location) on static pages
+    //   - slots 1..locationsPerPage on the single repeating page instance
+    // For every additional chunk of locationsPerPage locations beyond that,
+    // we clone the repeating page and fill it via coordinate overlay only.
+    //
+    // AcroForm field names cannot be used for cloned pages — the same field
+    // names exist in the parent document and setting them would overwrite the
+    // base-form values. Coordinate overlays draw directly onto the page surface
+    // and are immune to this collision.
+    //
+    // Slot offset formula: for clone N (1-indexed), mapping slot S
+    //   → payload.locations[ S + N * locationsPerPage ]
+    {
+      const pdfType            = formData.pdf_type             as string | null
+      const repeatingPageIndex = formData.repeating_page_index as number | null
+      const locationsPerPage   = (formData.locations_per_page  as number | null) ?? 2
+
+      if (
+        pdfType === 'repeating'  &&
+        repeatingPageIndex !== null &&
+        repeatingPageIndex < pdfDoc.getPageCount() &&
+        locations.length > 0
+      ) {
+        // Total locations the base form covers: slot 0 + one repeating-page instance
+        const baseFormCoverage = locationsPerPage + 1
+
+        if (locations.length > baseFormCoverage) {
+          // Isolate coordinate mappings that target the repeating page.
+          // coord keys are 1-indexed page numbers ("3:x,y" = page 3).
+          const repeatingPageNum = repeatingPageIndex + 1
+          const repeatingCoordMappings = Object.entries(mappings).filter(([key]) => {
+            const c = parseCoord(key)
+            return c !== null && c.page === repeatingPageNum
+          }) as Array<[string, string]>
+
+          if (repeatingCoordMappings.length === 0) {
+            console.warn(
+              `[generate-pdf] pdf_type=repeating but no coordinate mappings found for page ` +
+              `${repeatingPageNum}. Overflow clones will be blank. ` +
+              `Map repeating-page fields via coordinates (not AcroForm field names) to fill them.`
+            )
+          }
+
+          const clonesNeeded = Math.ceil((locations.length - baseFormCoverage) / locationsPerPage)
+
+          for (let cloneN = 1; cloneN <= clonesNeeded; cloneN++) {
+            // Load a fresh copy of the original template so we copy an unfilled page.
+            // The already-modified pdfDoc's version of the repeating page is filled
+            // with base-form data and must not be used as a clone source.
+            const freshDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
+            const [blankPage] = await pdfDoc.copyPages(freshDoc, [repeatingPageIndex])
+
+            // Insert immediately after the base repeating page and any prior clones.
+            // Each insertion shifts subsequent pages forward by one, so clone N lands
+            // at repeatingPageIndex + N — trailing static pages stay at the end.
+            const insertAt = repeatingPageIndex + cloneN
+            pdfDoc.insertPage(insertAt, blankPage)
+
+            // Fill via coordinate overlay.
+            const clonePage = pdfDoc.getPage(insertAt)
+            const { height: cloneH } = clonePage.getSize()
+
+            for (const [key, dataPath] of repeatingCoordMappings) {
+              const coord = parseCoord(key)!  // already validated in the filter above
+
+              // Only slot-indexed location paths carry per-location data.
+              // Provider/group/application paths are the same on every clone and
+              // were already drawn on the base form's repeating page — skipping them
+              // here avoids duplicating static text on clones. If desired, remove
+              // this guard and they will be drawn on each clone as well.
+              const slotMatch = dataPath.match(/^location\.(\d+)\.(.+)$/)
+              if (!slotMatch) continue
+
+              const slotIndex     = parseInt(slotMatch[1], 10)
+              const slotField     = slotMatch[2]
+              // Shift: clone N moves each slot index forward by N * locationsPerPage
+              const locationIndex = slotIndex + cloneN * locationsPerPage
+              const loc = (locations[locationIndex] ?? null) as unknown as Record<string, unknown> | null
+              if (!loc) continue
+
+              const raw = loc[slotField]
+              if (raw === null || raw === undefined) continue
+              const value = typeof raw === 'boolean' ? (raw ? 'Yes' : 'No') : String(raw)
+              if (!value) continue
+
+              clonePage.drawText(value, {
+                x:    coord.x,
+                y:    cloneH - coord.y - coord.size,
+                size: coord.size,
+                font,
+                color: rgb(0, 0, 0),
+              })
+            }
+          }
+        }
+      }
     }
 
     const filledBytes = await pdfDoc.save()
