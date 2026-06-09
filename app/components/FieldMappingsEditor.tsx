@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import type { FieldMappingValue } from '../types'
 
 const DATA_PATHS: Record<string, string[]> = {
   provider: [
@@ -41,39 +42,76 @@ const LOCATION_SLOT_LABELS = ['Primary (1st)', 'Slot 2', 'Slot 3', 'Slot 4', 'Sl
 interface DetectedField { name: string; type: string }
 
 interface Props {
-  formId:          string
-  initialMappings: Record<string, string>
-  hasPdf:          boolean
+  formId: string
+  initialMappings: Record<string, string | FieldMappingValue>
+  hasPdf: boolean
 }
 
 type InputMode = 'acroform' | 'coordinate'
 
-export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }: Props) {
-  const [mappings,     setMappings]     = useState<Record<string, string>>(initialMappings)
-  const [inputMode,    setInputMode]    = useState<InputMode>('coordinate')
-  // AcroForm mode
-  const [newPdfField,  setNewPdfField]  = useState('')
-  // Coordinate mode
-  const [coordX,       setCoordX]       = useState('')
-  const [coordY,       setCoordY]       = useState('')
-  const [coordPage,    setCoordPage]    = useState('1')
-  const [coordSize,    setCoordSize]    = useState('9')
-  // Shared
-  const [newCategory,  setNewCategory]  = useState('provider')
-  const [newDataField, setNewDataField] = useState(DATA_PATHS['provider'][0])
-  const [locationSlot, setLocationSlot] = useState(0)
-  const [saving,       setSaving]       = useState(false)
-  const [isDirty,      setIsDirty]      = useState(false)
-  const [justSaved,    setJustSaved]    = useState(false)
-  const [error,        setError]        = useState<string | null>(null)
-  // Detect
-  const [detected,     setDetected]     = useState<DetectedField[] | null>(null)
-  const [detecting,    setDetecting]    = useState(false)
-  const [detectError,  setDetectError]  = useState<string | null>(null)
-  // View PDF
-  const [loadingUrl,   setLoadingUrl]   = useState(false)
+function normalizeInitial(raw: Record<string, string | FieldMappingValue>): Record<string, FieldMappingValue> {
+  const result: Record<string, FieldMappingValue> = {}
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof val === 'string') {
+      const sizeMatch = key.match(/,(\d+(?:\.\d+)?)$/)
+      const fontSize = sizeMatch ? parseFloat(sizeMatch[1]) : 10
+      result[key] = { template: val, fontSize }
+    } else {
+      result[key] = val
+    }
+  }
+  return result
+}
 
-  // ── View PDF in new tab ─────────────────────────────────────────────────────
+function insertToken(
+  token: string,
+  inputRef: React.RefObject<HTMLInputElement | null>,
+  getVal: () => string,
+  setVal: (v: string) => void,
+) {
+  const input = inputRef.current
+  const current = getVal()
+  const start = input?.selectionStart ?? current.length
+  const end = input?.selectionEnd ?? start
+  const next = current.slice(0, start) + token + current.slice(end)
+  setVal(next)
+  requestAnimationFrame(() => {
+    if (input) {
+      input.setSelectionRange(start + token.length, start + token.length)
+      input.focus()
+    }
+  })
+}
+
+export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }: Props) {
+  const [mappings, setMappings] = useState<Record<string, FieldMappingValue>>(
+    () => normalizeInitial(initialMappings)
+  )
+  const [inputMode, setInputMode] = useState<InputMode>('coordinate')
+  // AcroForm mode
+  const [newPdfField, setNewPdfField] = useState('')
+  // Coordinate mode
+  const [coordX, setCoordX] = useState('')
+  const [coordY, setCoordY] = useState('')
+  const [coordPage, setCoordPage] = useState('1')
+  // Shared template fields
+  const [newTemplate, setNewTemplate] = useState('{provider.first_name}')
+  const [newFontSize, setNewFontSize] = useState(10)
+  // UI state
+  const [saving, setSaving] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Detect
+  const [detected, setDetected] = useState<DetectedField[] | null>(null)
+  const [detecting, setDetecting] = useState(false)
+  const [detectError, setDetectError] = useState<string | null>(null)
+  // View PDF
+  const [loadingUrl, setLoadingUrl] = useState(false)
+
+  const newTemplateInputRef = useRef<HTMLInputElement | null>(null)
+
+  // ── View PDF ──────────────────────────────────────────────────────────────────
   const handleViewPdf = async () => {
     setLoadingUrl(true)
     const res = await fetch('/api/pdf-signed-url', {
@@ -87,7 +125,7 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
     window.open(url, '_blank')
   }
 
-  // ── Detect AcroForm fields ──────────────────────────────────────────────────
+  // ── Detect AcroForm fields ────────────────────────────────────────────────────
   const handleDetect = async () => {
     setDetecting(true)
     setDetectError(null)
@@ -103,18 +141,16 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
     if (fields.length > 0) setInputMode('acroform')
   }
 
-  // ── Build the field key for coordinate entries ──────────────────────────────
+  // ── Build coordinate key (no size — size lives in value) ──────────────────────
   const buildCoordKey = (): string => {
     const x = coordX.trim()
     const y = coordY.trim()
     const p = coordPage.trim() || '1'
-    const s = coordSize.trim()
     if (!x || !y) return ''
-    const base = p === '1' ? `${x},${y}` : `${p}:${x},${y}`
-    return s && s !== '9' ? `${base},${s}` : base
+    return p === '1' ? `${x},${y}` : `${p}:${x},${y}`
   }
 
-  // ── Add mapping ─────────────────────────────────────────────────────────────
+  // ── Add mapping ───────────────────────────────────────────────────────────────
   const addMapping = () => {
     setError(null)
     let key = ''
@@ -125,10 +161,9 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
       key = buildCoordKey()
       if (!key) { setError('Enter X and Y coordinates.'); return }
     }
-    const path = newCategory === 'location'
-      ? `location.${locationSlot}.${newDataField}`
-      : `${newCategory}.${newDataField}`
-    setMappings(prev => ({ ...prev, [key]: path }))
+    const template = newTemplate.trim()
+    if (!template) { setError('Enter a template.'); return }
+    setMappings(prev => ({ ...prev, [key]: { template, fontSize: newFontSize } }))
     if (inputMode === 'acroform') setNewPdfField('')
     else { setCoordX(''); setCoordY('') }
     setIsDirty(true)
@@ -158,10 +193,49 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
   const isCoordKey = (k: string) => /^\d/.test(k) && k.includes(',')
   const mappedFields = new Set(Object.keys(mappings))
 
+  // ── Token insert select ───────────────────────────────────────────────────────
+  const TokenInsertSelect = () => (
+    <select
+      value=""
+      onChange={e => {
+        if (e.target.value) insertToken(e.target.value, newTemplateInputRef, () => newTemplate, setNewTemplate)
+      }}
+      className="form-select"
+      style={{ fontSize: '11px' }}
+    >
+      <option value="">Insert token…</option>
+      <optgroup label="Provider">
+        {DATA_PATHS.provider.map(f => (
+          <option key={f} value={`{provider.${f}}`}>{`provider.${f}`}</option>
+        ))}
+      </optgroup>
+      <optgroup label="Group">
+        {DATA_PATHS.group.map(f => (
+          <option key={f} value={`{group.${f}}`}>{`group.${f}`}</option>
+        ))}
+      </optgroup>
+      {[0, 1, 2, 3, 4].map(slot => (
+        <optgroup key={slot} label={LOCATION_SLOT_LABELS[slot]}>
+          {DATA_PATHS.location.map(f => (
+            <option key={f} value={`{location.${slot}.${f}}`}>{`loc.${slot}.${f}`}</option>
+          ))}
+        </optgroup>
+      ))}
+      <optgroup label="Application">
+        {DATA_PATHS.application.map(f => (
+          <option key={f} value={`{application.${f}}`}>{`application.${f}`}</option>
+        ))}
+      </optgroup>
+      <optgroup label="Static">
+        <option value="{static.overflow}">static.overflow</option>
+      </optgroup>
+    </select>
+  )
+
   return (
     <div>
 
-      {/* ── Toolbar: View PDF + Detect Fields ───────────────────────────────── */}
+      {/* Toolbar: View PDF + Detect Fields */}
       {hasPdf && (
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
           <button onClick={handleViewPdf} disabled={loadingUrl}
@@ -217,19 +291,19 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
         </div>
       )}
 
-      {/* ── Existing mappings ────────────────────────────────────────────────── */}
+      {/* Existing mappings table */}
       {Object.keys(mappings).length > 0 ? (
         <div style={{ marginBottom: '20px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>Field / Coordinates</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>Data Path</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>Template</th>
                 <th style={{ width: '40px' }} />
               </tr>
             </thead>
             <tbody>
-              {Object.entries(mappings).map(([key, dataPath]) => (
+              {Object.entries(mappings).map(([key, mappingValue]) => (
                 <tr key={key} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 12px' }}>
                     {isCoordKey(key) ? (
@@ -241,7 +315,12 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
                     )}
                   </td>
                   <td style={{ padding: '10px 12px' }}>
-                    <code style={{ backgroundColor: '#f1f5f9', color: '#4f46e5', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{dataPath}</code>
+                    <code style={{ backgroundColor: '#f1f5f9', color: '#4f46e5', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
+                      {mappingValue.template}
+                    </code>
+                    {mappingValue.fontSize !== 10 && (
+                      <span style={{ marginLeft: '6px', fontSize: '11px', color: '#94a3b8' }}>{mappingValue.fontSize}pt</span>
+                    )}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                     <button onClick={() => removeMapping(key)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '16px', lineHeight: 1 }} title="Remove">×</button>
@@ -257,7 +336,7 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
         </p>
       )}
 
-      {/* ── Add mapping ──────────────────────────────────────────────────────── */}
+      {/* Add mapping form */}
       <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
 
         {/* Mode tabs */}
@@ -266,7 +345,7 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
             <button key={m} onClick={() => setInputMode(m)} style={{
               padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 500, border: 'none', cursor: 'pointer',
               backgroundColor: inputMode === m ? '#4f46e5' : '#e2e8f0',
-              color:           inputMode === m ? '#ffffff' : '#64748b',
+              color: inputMode === m ? '#ffffff' : '#64748b',
             }}>
               {m === 'coordinate' ? '📍 Coordinates' : '📝 Field Name'}
             </button>
@@ -275,77 +354,80 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
 
         {inputMode === 'coordinate' ? (
           <>
-            {/* Coordinate instructions */}
             <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '12px', color: '#1d4ed8', lineHeight: '1.6' }}>
-              <strong>How to find coordinates:</strong> Click <em>View PDF</em> above to open the form in a new tab. In your browser&apos;s PDF viewer, hover over a field — the status bar shows the cursor position. On a standard letter page (612 × 792 pt), X goes left→right, Y goes top→bottom. Enter the top-left corner of where the text should appear.
+              <strong>How to find coordinates:</strong> Click <em>View PDF</em> above to open the form in a new tab. In your browser&apos;s PDF viewer, hover over a field — the status bar shows the cursor position. On a standard letter page (612 × 792 pt), X goes left→right, Y goes top→bottom.
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '80px 80px 60px 60px 1fr auto', gap: '8px', alignItems: 'end' }}>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '80px 80px 60px', gap: '8px', marginBottom: '10px' }}>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">X (left)</label>
-                <input className="form-input" type="number" value={coordX} onChange={(e) => setCoordX(e.target.value)} placeholder="e.g. 120" />
+                <input className="form-input" type="number" value={coordX} onChange={e => setCoordX(e.target.value)} placeholder="e.g. 120" />
               </div>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">Y (top)</label>
-                <input className="form-input" type="number" value={coordY} onChange={(e) => setCoordY(e.target.value)} placeholder="e.g. 650" />
+                <input className="form-input" type="number" value={coordY} onChange={e => setCoordY(e.target.value)} placeholder="e.g. 650" />
               </div>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">Page</label>
-                <input className="form-input" type="number" min={1} value={coordPage} onChange={(e) => setCoordPage(e.target.value)} />
+                <input className="form-input" type="number" min={1} value={coordPage} onChange={e => setCoordPage(e.target.value)} />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '8px', alignItems: 'end' }}>
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label className="form-label">Template</label>
+                <input
+                  ref={newTemplateInputRef}
+                  className="form-input"
+                  type="text"
+                  value={newTemplate}
+                  onChange={e => setNewTemplate(e.target.value)}
+                  placeholder="{provider.first_name}"
+                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                />
+              </div>
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label className="form-label">Token</label>
+                <TokenInsertSelect />
               </div>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">Size</label>
-                <input className="form-input" type="number" min={6} max={16} value={coordSize} onChange={(e) => setCoordSize(e.target.value)} />
+                <input className="form-input" type="number" min={6} max={24} value={newFontSize} onChange={e => setNewFontSize(Number(e.target.value))} style={{ width: '60px' }} />
               </div>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Data field</label>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                  <select className="form-select" value={newCategory} onChange={(e) => { setNewCategory(e.target.value); setNewDataField(DATA_PATHS[e.target.value][0]); if (e.target.value !== 'location') setLocationSlot(0) }} style={{ flex: '0 0 auto', width: '110px' }}>
-                    {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  {newCategory === 'location' && (
-                    <select className="form-select" value={locationSlot} onChange={(e) => setLocationSlot(parseInt(e.target.value, 10))} style={{ flex: '0 0 auto', width: '110px' }}>
-                      {LOCATION_SLOT_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
-                    </select>
-                  )}
-                  <select className="form-select" value={newDataField} onChange={(e) => setNewDataField(e.target.value)}>
-                    {DATA_PATHS[newCategory].map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-              </div>
-              <button onClick={addMapping} className="btn btn-secondary btn-sm" style={{ alignSelf: 'end' }}>Add</button>
             </div>
+
+            <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={addMapping} className="btn btn-secondary btn-sm">Add</button>
+            </div>
+
             {coordX && coordY && (
-              <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                Will place <code style={{ color: '#7c3aed' }}>{newCategory === 'location' ? `location.${locationSlot}.${newDataField}` : `${newCategory}.${newDataField}`}</code> at coordinate key <code style={{ color: '#7c3aed' }}>{buildCoordKey() || '…'}</code>
+              <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
+                Key: <code style={{ color: '#7c3aed' }}>{buildCoordKey() || '…'}</code>
               </p>
             )}
           </>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: newCategory === 'location' ? '1fr 1fr 1fr 1fr auto' : '1fr 1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '8px', alignItems: 'end' }}>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">PDF Field Name</label>
-                <input className="form-input" value={newPdfField} onChange={(e) => setNewPdfField(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMapping()} placeholder="e.g. Last_Name" />
+                <input className="form-input" value={newPdfField} onChange={e => setNewPdfField(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMapping()} placeholder="e.g. Last_Name" />
               </div>
               <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Category</label>
-                <select className="form-select" value={newCategory} onChange={(e) => { setNewCategory(e.target.value); setNewDataField(DATA_PATHS[e.target.value][0]); if (e.target.value !== 'location') setLocationSlot(0) }}>
-                  {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <label className="form-label">Template</label>
+                <input
+                  ref={newTemplateInputRef}
+                  className="form-input"
+                  type="text"
+                  value={newTemplate}
+                  onChange={e => setNewTemplate(e.target.value)}
+                  placeholder="{provider.first_name}"
+                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                />
               </div>
-              {newCategory === 'location' && (
-                <div className="form-field" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Slot</label>
-                  <select className="form-select" value={locationSlot} onChange={(e) => setLocationSlot(parseInt(e.target.value, 10))}>
-                    {LOCATION_SLOT_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
-                  </select>
-                </div>
-              )}
               <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Field</label>
-                <select className="form-select" value={newDataField} onChange={(e) => setNewDataField(e.target.value)}>
-                  {DATA_PATHS[newCategory].map(f => <option key={f} value={f}>{f}</option>)}
-                </select>
+                <label className="form-label">Token</label>
+                <TokenInsertSelect />
               </div>
               <button onClick={addMapping} className="btn btn-secondary btn-sm" style={{ alignSelf: 'end' }}>Add</button>
             </div>
@@ -355,7 +437,7 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
         {error && <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '8px' }}>⚠ {error}</p>}
       </div>
 
-      {/* ── Save bar ─────────────────────────────────────────────────────────── */}
+      {/* Save bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button onClick={handleSave} disabled={saving || !isDirty}
           className={isDirty && !saving ? 'btn btn-primary' : 'btn btn-disabled'}

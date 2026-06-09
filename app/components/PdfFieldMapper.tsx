@@ -2,92 +2,83 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import type { FieldMappingValue } from '../types'
 
 const DATA_PATHS: Record<string, string[]> = {
   provider: [
-    // Computed / derived (not raw DB columns)
-    'full_name',            // "First [MI.] Last[, Suffix]"
-    'middle_initial',       // first char of middle_name + "."
-    // Name fields
-    'first_name','last_name','middle_name','credential_suffix',
-    // Contact
-    'npi','email','phone','date_of_birth','gender',
-    // Sensitive identifiers
-    'ssn','provider_tax_id',
-    // Practice
-    'specialty','secondary_specialty','taxonomy_code',
-    'languages','hospital_affiliation',
-    // Boolean columns (plain Yes/No text)
-    'is_pcp','accepting_new_patients',
-    // Boolean Y/N checkbox pairs (place on separate PDF checkboxes)
-    'is_pcp_yes','is_pcp_no',
-    'accepting_new_patients_yes','accepting_new_patients_no',
-    // Credentials
-    'license_number','license_state','license_expiration',
-    'dea_number','caqh_number','medicaid_number','medicare_number',
-    // Malpractice
-    'malpractice_carrier','malpractice_policy','malpractice_expiration',
-    'malpractice_per_occurrence','malpractice_aggregate',
-    // Education
-    'medical_school','graduation_year','residency_program','residency_completion',
-    'fellowship_program','fellowship_completion',
-    // Board certification
-    'board_certified','board_specialty','board_expiration',
+    'full_name', 'middle_initial',
+    'first_name', 'last_name', 'middle_name', 'credential_suffix',
+    'npi', 'email', 'phone', 'date_of_birth', 'gender',
+    'ssn', 'provider_tax_id',
+    'specialty', 'secondary_specialty', 'taxonomy_code',
+    'languages', 'hospital_affiliation',
+    'is_pcp', 'accepting_new_patients',
+    'is_pcp_yes', 'is_pcp_no',
+    'accepting_new_patients_yes', 'accepting_new_patients_no',
+    'license_number', 'license_state', 'license_expiration',
+    'dea_number', 'caqh_number', 'medicaid_number', 'medicare_number',
+    'malpractice_carrier', 'malpractice_policy', 'malpractice_expiration',
+    'malpractice_per_occurrence', 'malpractice_aggregate',
+    'medical_school', 'graduation_year', 'residency_program', 'residency_completion',
+    'fellowship_program', 'fellowship_completion',
+    'board_certified', 'board_specialty', 'board_expiration',
   ],
   group: [
-    'name','legal_name','tax_id','group_npi','taxonomy_code',
-    'medicaid_group_number','medicare_group_number','practice_type',
-    'authorized_official_name','authorized_official_title',
-    'authorized_official_phone','authorized_official_email',
-    'credentialing_contact_name','credentialing_contact_email',
-    'credentialing_contact_phone','credentialing_contact_fax',
-    // Billing address
-    'billing_name','billing_address_1','billing_address_2',
-    'billing_city','billing_state','billing_zip',
-    'billing_phone','billing_fax',
+    'name', 'legal_name', 'tax_id', 'group_npi', 'taxonomy_code',
+    'medicaid_group_number', 'medicare_group_number', 'practice_type',
+    'authorized_official_name', 'authorized_official_title',
+    'authorized_official_phone', 'authorized_official_email',
+    'credentialing_contact_name', 'credentialing_contact_email',
+    'credentialing_contact_phone', 'credentialing_contact_fax',
+    'billing_name', 'billing_address_1', 'billing_address_2',
+    'billing_city', 'billing_state', 'billing_zip',
+    'billing_phone', 'billing_fax',
   ],
   location: [
-    // Service / physical address
-    'name','address_1','address_2','city','state','zip','county',
-    // Mailing address (may differ)
-    'mailing_address_1','mailing_address_2',
-    'mailing_city','mailing_state','mailing_zip',
-    'phone','fax','facility_type','accepts_new_patients','handicap_accessible',
-    'accepts_medicaid','accepts_medicare','hours_mon_fri','hours_weekend',
+    'name', 'address_1', 'address_2', 'city', 'state', 'zip', 'county',
+    'mailing_address_1', 'mailing_address_2',
+    'mailing_city', 'mailing_state', 'mailing_zip',
+    'phone', 'fax', 'facility_type', 'accepts_new_patients', 'handicap_accessible',
+    'accepts_medicaid', 'accepts_medicare', 'hours_mon_fri', 'hours_weekend',
   ],
-  application: ['status','submitted_at','approved_at','effective_date','payer_reference'],
-  // Static / literal values — resolved from the payer form config, not provider data
+  application: ['status', 'submitted_at', 'approved_at', 'effective_date', 'payer_reference'],
   static: ['overflow'],
 }
 
-const LOCATION_SLOT_LABELS = [
-  'Primary (1st)',
-  'Slot 2',
-  'Slot 3',
-  'Slot 4',
-  'Slot 5',
-]
-
+const LOCATION_SLOT_LABELS = ['Primary (1st)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5']
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
-const PIN_COLORS = ['#4f46e5','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#a16207']
+const PIN_COLORS = ['#4f46e5', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#be185d', '#a16207']
 
 function parseKey(key: string): { page: number; x: number; y: number; size: number } | null {
   const wp = key.match(/^(\d+):(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?$/)
-  if (wp) return { page: parseInt(wp[1]), x: parseFloat(wp[2]), y: parseFloat(wp[3]), size: wp[4] ? parseFloat(wp[4]) : 9 }
+  if (wp) return { page: parseInt(wp[1]), x: parseFloat(wp[2]), y: parseFloat(wp[3]), size: wp[4] ? parseFloat(wp[4]) : 10 }
   const np = key.match(/^(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?$/)
-  if (np) return { page: 1, x: parseFloat(np[1]), y: parseFloat(np[2]), size: np[3] ? parseFloat(np[3]) : 9 }
+  if (np) return { page: 1, x: parseFloat(np[1]), y: parseFloat(np[2]), size: np[3] ? parseFloat(np[3]) : 10 }
   return null
 }
 
-function buildKey(page: number, x: number, y: number, size: number): string {
+function buildKey(page: number, x: number, y: number): string {
   const rx = Math.round(x * 10) / 10
   const ry = Math.round(y * 10) / 10
-  const base = page === 1 ? `${rx},${ry}` : `${page}:${rx},${ry}`
-  return size !== 9 ? `${base},${size}` : base
+  return page === 1 ? `${rx},${ry}` : `${page}:${rx},${ry}`
 }
 
-function fieldLabel(path: string) {
-  // location.N.field → "loc[N+1]: field"
+function normalizeInitial(raw: Record<string, string | FieldMappingValue>): Record<string, FieldMappingValue> {
+  const result: Record<string, FieldMappingValue> = {}
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof val === 'string') {
+      result[key] = { template: val, fontSize: parseKey(key)?.size ?? 10 }
+    } else {
+      result[key] = val
+    }
+  }
+  return result
+}
+
+function fieldLabel(template: string): string {
+  // Extract first {token} if present, otherwise treat as plain path
+  const tokenMatch = template.match(/\{([^}]+)\}/)
+  const path = tokenMatch ? tokenMatch[1].replace(/\|separator=.*$/, '') : template
   const locSlot = path.match(/^location\.(\d+)\.(.+)$/)
   if (locSlot) return `loc[${parseInt(locSlot[1]) + 1}]: ${locSlot[2]}`
   return path
@@ -98,22 +89,40 @@ function fieldLabel(path: string) {
     .replace('static.', '')
 }
 
-// Raw page dimensions + base scale (before zoom)
-interface PageMetadata {
-  pageNum:   number
-  pdfWidth:  number
-  pdfHeight: number
-  baseScale: number  // fit-to-container scale at 100% zoom
+function insertToken(
+  token: string,
+  inputRef: React.RefObject<HTMLInputElement | null>,
+  getVal: () => string,
+  setVal: (v: string) => void,
+) {
+  const input = inputRef.current
+  const current = getVal()
+  const start = input?.selectionStart ?? current.length
+  const end = input?.selectionEnd ?? start
+  const next = current.slice(0, start) + token + current.slice(end)
+  setVal(next)
+  requestAnimationFrame(() => {
+    if (input) {
+      input.setSelectionRange(start + token.length, start + token.length)
+      input.focus()
+    }
+  })
 }
 
-// Zoom-adjusted display info (what render effects use)
-interface PageInfo {
-  pageNum:   number
-  pdfWidth:  number
+interface PageMetadata {
+  pageNum: number
+  pdfWidth: number
   pdfHeight: number
-  scale:     number  // baseScale * zoomLevel
-  canvasW:   number
-  canvasH:   number
+  baseScale: number
+}
+
+interface PageInfo {
+  pageNum: number
+  pdfWidth: number
+  pdfHeight: number
+  scale: number
+  canvasW: number
+  canvasH: number
 }
 
 interface DragState {
@@ -123,69 +132,70 @@ interface DragState {
   startMouseY: number
   originalPdfX: number
   originalPdfY: number
-  size: number
   hasMoved: boolean
 }
 
 interface Props {
   formId: string
-  initialMappings: Record<string, string>
+  initialMappings: Record<string, string | FieldMappingValue>
 }
 
 export default function PdfFieldMapper({ formId, initialMappings }: Props) {
-  const [mappings,     setMappings]     = useState<Record<string, string>>(initialMappings)
+  const [mappings, setMappings] = useState<Record<string, FieldMappingValue>>(
+    () => normalizeInitial(initialMappings)
+  )
   const [pageMetadata, setPageMetadata] = useState<PageMetadata[]>([])
-  const [zoomLevel,    setZoomLevel]    = useState(1.0)
-  const [pdfLoading,   setPdfLoading]   = useState(true)
-  const [pdfError,     setPdfError]     = useState<string | null>(null)
+  const [zoomLevel, setZoomLevel] = useState(1.0)
+  const [pdfLoading, setPdfLoading] = useState(true)
+  const [pdfError, setPdfError] = useState<string | null>(null)
 
-  // Derive zoom-adjusted PageInfo from metadata + current zoom
   const pages = useMemo<PageInfo[]>(() =>
     pageMetadata.map(m => {
       const scale = m.baseScale * zoomLevel
       return {
-        pageNum:  m.pageNum,
-        pdfWidth:  m.pdfWidth,
+        pageNum: m.pageNum,
+        pdfWidth: m.pdfWidth,
         pdfHeight: m.pdfHeight,
         scale,
-        canvasW: Math.floor(m.pdfWidth  * scale),
+        canvasW: Math.floor(m.pdfWidth * scale),
         canvasH: Math.floor(m.pdfHeight * scale),
       }
     }),
     [pageMetadata, zoomLevel]
   )
 
-  // Active placement tool
-  const [activeCategory, setActiveCategory] = useState('provider')
-  const [activeField,    setActiveField]    = useState(DATA_PATHS['provider'][0])
-  const [locationSlot,   setLocationSlot]   = useState(0)  // slot index for location category
-  const [fontSize,       setFontSize]       = useState(9)
+  // Placement tool state
+  const [newTemplate, setNewTemplate] = useState('{provider.first_name}')
+  const [fontSize, setFontSize] = useState(10)
 
   // Selection + drag
-  const [selectedKey,  setSelectedKey]  = useState<string | null>(null)
-  const [dragVisual,   setDragVisual]   = useState<{ key: string; pdfX: number; pdfY: number } | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [dragVisual, setDragVisual] = useState<{ key: string; pdfX: number; pdfY: number } | null>(null)
 
   // Guide crosshair
   const [guidePos, setGuidePos] = useState<{ pageNum: number; y: number; x: number } | null>(null)
 
   // Save state
-  const [saving,    setSaving]    = useState(false)
-  const [isDirty,   setIsDirty]   = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfDocRef      = useRef<any>(null)
-  const canvasEls      = useRef<(HTMLCanvasElement | null)[]>([])
-  const containerRef   = useRef<HTMLDivElement>(null)
-  const dragStateRef   = useRef<DragState | null>(null)
-  const dragVisualRef  = useRef<{ key: string; pdfX: number; pdfY: number } | null>(null)
-  const mappingsRef    = useRef<Record<string, string>>(initialMappings)
+  const pdfDocRef = useRef<any>(null)
+  const canvasEls = useRef<(HTMLCanvasElement | null)[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragStateRef = useRef<DragState | null>(null)
+  const dragVisualRef = useRef<{ key: string; pdfX: number; pdfY: number } | null>(null)
+  const mappingsRef = useRef<Record<string, FieldMappingValue>>({})
   const selectedKeyRef = useRef<string | null>(null)
-  mappingsRef.current    = mappings
+  const templateInputRef = useRef<HTMLInputElement | null>(null)
+  const selectedTemplateInputRef = useRef<HTMLInputElement | null>(null)
+
+  mappingsRef.current = mappings
   selectedKeyRef.current = selectedKey
 
-  // ── Effect 1: load PDF and compute base scales ──────────────────────────────
+  // ── Effect 1: load PDF ────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     setPdfLoading(true)
@@ -223,10 +233,10 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
       const metadata: PageMetadata[] = []
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i)
-        const vp1  = page.getViewport({ scale: 1 })
+        const vp1 = page.getViewport({ scale: 1 })
         metadata.push({
-          pageNum:   i,
-          pdfWidth:  vp1.width,
+          pageNum: i,
+          pdfWidth: vp1.width,
           pdfHeight: vp1.height,
           baseScale: Math.min((containerW - 4) / vp1.width, 1.5),
         })
@@ -244,7 +254,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     }
   }, [formId])
 
-  // ── Effect 2: render pages to canvases (re-runs when zoom changes) ──────────
+  // ── Effect 2: render pages ────────────────────────────────────────────────────
   useEffect(() => {
     if (pages.length === 0 || !pdfDocRef.current) return
     let cancelled = false
@@ -254,14 +264,14 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     async function renderAll() {
       for (let i = 0; i < pages.length; i++) {
         if (cancelled) break
-        const info   = pages[i]
+        const info = pages[i]
         const canvas = canvasEls.current[i]
         if (!canvas) continue
-        const page     = await pdfDocRef.current.getPage(info.pageNum)
+        const page = await pdfDocRef.current.getPage(info.pageNum)
         if (cancelled) break
         const viewport = page.getViewport({ scale: info.scale })
-        canvas.width   = info.canvasW
-        canvas.height  = info.canvasH
+        canvas.width = info.canvasW
+        canvas.height = info.canvasH
         const ctx = canvas.getContext('2d')
         if (!ctx || cancelled) break
         const task = page.render({ canvasContext: ctx, viewport })
@@ -278,7 +288,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     }
   }, [pages])
 
-  // ── Global drag handlers ────────────────────────────────────────────────────
+  // ── Global drag handlers ──────────────────────────────────────────────────────
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       const drag = dragStateRef.current
@@ -300,13 +310,13 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
       if (drag.hasMoved) {
         const visual = dragVisualRef.current
         if (visual) {
-          const oldPath = mappingsRef.current[drag.originalKey]
-          if (oldPath !== undefined) {
-            const newKey = buildKey(drag.pageInfo.pageNum, visual.pdfX, visual.pdfY, drag.size)
+          const oldVal = mappingsRef.current[drag.originalKey]
+          if (oldVal !== undefined) {
+            const newKey = buildKey(drag.pageInfo.pageNum, visual.pdfX, visual.pdfY)
             setMappings(prev => {
               const next = { ...prev }
               delete next[drag.originalKey]
-              next[newKey] = oldPath
+              next[newKey] = oldVal
               return next
             })
             setSelectedKey(newKey)
@@ -328,7 +338,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     }
   }, [])
 
-  // ── Arrow key nudge ─────────────────────────────────────────────────────────
+  // ── Arrow key nudge ───────────────────────────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const key = selectedKeyRef.current
@@ -337,20 +347,20 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
       const step = e.shiftKey ? 5 : 1
       let dx = 0, dy = 0
-      if (e.key === 'ArrowUp')    { dy = -step }
-      else if (e.key === 'ArrowDown')  { dy =  step }
-      else if (e.key === 'ArrowLeft')  { dx = -step }
-      else if (e.key === 'ArrowRight') { dx =  step }
+      if (e.key === 'ArrowUp') { dy = -step }
+      else if (e.key === 'ArrowDown') { dy = step }
+      else if (e.key === 'ArrowLeft') { dx = -step }
+      else if (e.key === 'ArrowRight') { dx = step }
       else return
       e.preventDefault()
       const coord = parseKey(key)
       if (!coord) return
-      const newKey = buildKey(coord.page, coord.x + dx, coord.y + dy, coord.size)
+      const newKey = buildKey(coord.page, coord.x + dx, coord.y + dy)
       setMappings(prev => {
         const next = { ...prev }
-        const path = next[key]
+        const val = next[key]
         delete next[key]
-        next[newKey] = path
+        next[newKey] = val
         return next
       })
       setSelectedKey(newKey)
@@ -360,25 +370,20 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // ── Build the data path for the currently active tool ──────────────────────
-  const buildActivePath = () =>
-    activeCategory === 'location'
-      ? `location.${locationSlot}.${activeField}`
-      : `${activeCategory}.${activeField}`
-
-  // ── Place pin on canvas click ───────────────────────────────────────────────
+  // ── Place pin on canvas click ─────────────────────────────────────────────────
   const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>, pageInfo: PageInfo) => {
     if (dragStateRef.current?.hasMoved) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const pdfX = (e.clientX - rect.left)  / pageInfo.scale
-    const pdfY = (e.clientY - rect.top)   / pageInfo.scale
-    const key  = buildKey(pageInfo.pageNum, pdfX, pdfY, fontSize)
-    setMappings(prev => ({ ...prev, [key]: buildActivePath() }))
+    const pdfX = (e.clientX - rect.left) / pageInfo.scale
+    const pdfY = (e.clientY - rect.top) / pageInfo.scale
+    const key = buildKey(pageInfo.pageNum, pdfX, pdfY)
+    const template = newTemplate.trim() || '{provider.first_name}'
+    setMappings(prev => ({ ...prev, [key]: { template, fontSize } }))
     setSelectedKey(key)
     setIsDirty(true)
   }
 
-  // ── Start dragging a pin ────────────────────────────────────────────────────
+  // ── Start dragging a pin ──────────────────────────────────────────────────────
   const handlePinMouseDown = (e: React.MouseEvent, key: string, pageInfo: PageInfo) => {
     e.preventDefault()
     e.stopPropagation()
@@ -388,7 +393,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
       originalKey: key, pageInfo,
       startMouseX: e.clientX, startMouseY: e.clientY,
       originalPdfX: coord.x, originalPdfY: coord.y,
-      size: coord.size, hasMoved: false,
+      hasMoved: false,
     }
     setDragVisual({ key, pdfX: coord.x, pdfY: coord.y })
     dragVisualRef.current = { key, pdfX: coord.x, pdfY: coord.y }
@@ -401,57 +406,49 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     setIsDirty(true)
   }
 
-  // ── Update selected pin's data path ────────────────────────────────────────
-  const updateSelectedField = (cat: string, field: string, slot = 0) => {
+  // ── Update selected pin's template ────────────────────────────────────────────
+  const updateSelectedTemplate = (template: string) => {
     if (!selectedKey) return
-    const path = cat === 'location' ? `location.${slot}.${field}` : `${cat}.${field}`
-    setMappings(prev => ({ ...prev, [selectedKey]: path }))
+    setMappings(prev => {
+      const existing = prev[selectedKey]
+      if (!existing) return prev
+      return { ...prev, [selectedKey]: { ...existing, template } }
+    })
     setIsDirty(true)
   }
 
-  // ── Update selected pin's X or Y coordinate ────────────────────────────────
+  // ── Update selected pin's font size ───────────────────────────────────────────
+  const updatePinSize = (key: string, size: number) => {
+    if (isNaN(size) || size < 4) return
+    setMappings(prev => {
+      const existing = prev[key]
+      if (!existing) return prev
+      return { ...prev, [key]: { ...existing, fontSize: size } }
+    })
+    setIsDirty(true)
+  }
+
+  // ── Update selected pin's X or Y coordinate ───────────────────────────────────
   const updatePinCoord = (key: string, axis: 'x' | 'y', value: number) => {
     const coord = parseKey(key)
     if (!coord || isNaN(value)) return
     const newX = axis === 'x' ? value : coord.x
     const newY = axis === 'y' ? value : coord.y
-    const newKey = buildKey(coord.page, newX, newY, coord.size)
+    const newKey = buildKey(coord.page, newX, newY)
     setMappings(prev => {
       const next = { ...prev }
-      const path = next[key]
+      const val = next[key]
       delete next[key]
-      next[newKey] = path
+      next[newKey] = val
       return next
     })
     setSelectedKey(newKey)
     setIsDirty(true)
   }
 
-  // ── Update selected pin's font size ────────────────────────────────────────
-  const updatePinSize = (key: string, size: number) => {
-    const coord = parseKey(key)
-    if (!coord || isNaN(size) || size < 4) return
-    const newKey = buildKey(coord.page, coord.x, coord.y, size)
-    setMappings(prev => {
-      const next = { ...prev }
-      const path = next[key]
-      delete next[key]
-      next[newKey] = path
-      return next
-    })
-    setSelectedKey(newKey)
-    setIsDirty(true)
-  }
-
-  // ── Zoom helpers ────────────────────────────────────────────────────────────
-  const zoomIn  = () => setZoomLevel(z => {
-    const next = ZOOM_STEPS.find(s => s > z)
-    return next ?? z
-  })
-  const zoomOut = () => setZoomLevel(z => {
-    const prev = [...ZOOM_STEPS].reverse().find(s => s < z)
-    return prev ?? z
-  })
+  // ── Zoom helpers ──────────────────────────────────────────────────────────────
+  const zoomIn = () => setZoomLevel(z => { const next = ZOOM_STEPS.find(s => s > z); return next ?? z })
+  const zoomOut = () => setZoomLevel(z => { const prev = [...ZOOM_STEPS].reverse().find(s => s < z); return prev ?? z })
 
   const handleSave = async () => {
     setSaving(true); setSaveError(null); setJustSaved(false)
@@ -467,27 +464,58 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   const colorForKey = (key: string) =>
     PIN_COLORS[mappingEntries.findIndex(([k]) => k === key) % PIN_COLORS.length]
 
-  const selectedPath  = selectedKey ? mappings[selectedKey] : null
+  const selectedValue = selectedKey ? (mappings[selectedKey] ?? null) : null
   const selectedCoord = selectedKey ? parseKey(selectedKey) : null
 
-  // Parse category, slot index, and field from the selected path
-  const selCat = selectedPath ? selectedPath.split('.')[0] : null
-  let selSlot  = 0
-  let selField: string | null = null
-  if (selectedPath && selCat) {
-    const parts = selectedPath.split('.')
-    if (selCat === 'location' && parts.length >= 3 && /^\d+$/.test(parts[1])) {
-      selSlot  = parseInt(parts[1], 10)
-      selField = parts.slice(2).join('.')
-    } else {
-      selField = parts.slice(1).join('.')
-    }
-  }
+  // ── Token insert select (rendered in two places) ──────────────────────────────
+  const TokenInsertSelect = ({
+    getVal,
+    setVal,
+    inputRef,
+  }: {
+    getVal: () => string
+    setVal: (v: string) => void
+    inputRef: React.RefObject<HTMLInputElement | null>
+  }) => (
+    <select
+      value=""
+      onChange={e => { if (e.target.value) insertToken(e.target.value, inputRef, getVal, setVal) }}
+      className="form-select"
+      style={{ fontSize: '11px' }}
+    >
+      <option value="">Insert token…</option>
+      <optgroup label="Provider">
+        {DATA_PATHS.provider.map(f => (
+          <option key={f} value={`{provider.${f}}`}>{`provider.${f}`}</option>
+        ))}
+      </optgroup>
+      <optgroup label="Group">
+        {DATA_PATHS.group.map(f => (
+          <option key={f} value={`{group.${f}}`}>{`group.${f}`}</option>
+        ))}
+      </optgroup>
+      {[0, 1, 2, 3, 4].map(slot => (
+        <optgroup key={slot} label={LOCATION_SLOT_LABELS[slot]}>
+          {DATA_PATHS.location.map(f => (
+            <option key={f} value={`{location.${slot}.${f}}`}>{`loc.${slot}.${f}`}</option>
+          ))}
+        </optgroup>
+      ))}
+      <optgroup label="Application">
+        {DATA_PATHS.application.map(f => (
+          <option key={f} value={`{application.${f}}`}>{`application.${f}`}</option>
+        ))}
+      </optgroup>
+      <optgroup label="Static">
+        <option value="{static.overflow}">static.overflow</option>
+      </optgroup>
+    </select>
+  )
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: '16px', alignItems: 'start' }}>
 
-      {/* ── LEFT: PDF pages ─────────────────────────────────────────────────── */}
+      {/* ── LEFT: PDF pages ───────────────────────────────────────────────────── */}
       <div style={{ minWidth: 0 }}>
         {/* Zoom toolbar */}
         {!pdfLoading && pages.length > 0 && (
@@ -508,10 +536,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
               }}
             >−</button>
 
-            <span style={{
-              fontSize: '12px', fontWeight: 600, color: '#334155',
-              minWidth: '42px', textAlign: 'center',
-            }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155', minWidth: '42px', textAlign: 'center' }}>
               {Math.round(zoomLevel * 100)}%
             </span>
 
@@ -527,7 +552,6 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
               }}
             >+</button>
 
-            {/* Quick zoom presets */}
             <div style={{ display: 'flex', gap: '3px', marginLeft: '4px' }}>
               {[0.75, 1.0, 1.5, 2.0].map(z => (
                 <button
@@ -597,7 +621,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                     style={{ display: 'block', borderRadius: '4px' }}
                   />
 
-                  {/* ── Crosshair guide ───────────────────────────────────── */}
+                  {/* Crosshair guide */}
                   {guidePos?.pageNum === pageInfo.pageNum && !isDraggingOnThisPage && (
                     <>
                       <div style={{
@@ -610,7 +634,6 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                         top: 0, bottom: 0, left: guidePos.x,
                         width: 0, borderLeft: '1px dashed rgba(79,70,229,0.25)',
                       }} />
-                      {/* Coordinate readout at cursor */}
                       <div style={{
                         position: 'absolute', pointerEvents: 'none', zIndex: 6,
                         left: guidePos.x + 8, top: guidePos.y - 18,
@@ -618,12 +641,10 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                         color: 'rgba(79,70,229,0.8)',
                         backgroundColor: 'rgba(238,242,255,0.9)',
                         padding: '1px 5px', borderRadius: '3px',
-                        whiteSpace: 'nowrap',
-                        border: '1px solid rgba(79,70,229,0.2)',
+                        whiteSpace: 'nowrap', border: '1px solid rgba(79,70,229,0.2)',
                       }}>
                         {Math.round(guidePos.x / pageInfo.scale)}, {Math.round(guidePos.y / pageInfo.scale)}
                       </div>
-                      {/* Preview label */}
                       <div style={{
                         position: 'absolute', pointerEvents: 'none', zIndex: 5,
                         left: guidePos.x + 6, top: guidePos.y,
@@ -632,21 +653,21 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                         fontWeight: 600, color: 'rgba(79,70,229,0.7)',
                         whiteSpace: 'nowrap', lineHeight: 1,
                       }}>
-                        {fieldLabel(buildActivePath())}
+                        {fieldLabel(newTemplate || '{provider.first_name}')}
                       </div>
                     </>
                   )}
 
-                  {/* ── Placed pins ───────────────────────────────────────── */}
-                  {pagePins.map(([key, path]) => {
-                    const coord      = parseKey(key)
+                  {/* Placed pins */}
+                  {pagePins.map(([key, mappingValue]) => {
+                    const coord = parseKey(key)
                     if (!coord) return null
-                    const color      = colorForKey(key)
+                    const color = colorForKey(key)
                     const isDragging = dragVisual?.key === key
                     const isSelected = selectedKey === key
-                    const displayX   = isDragging && dragVisual ? dragVisual.pdfX * pageInfo.scale : coord.x * pageInfo.scale
-                    const displayY   = isDragging && dragVisual ? dragVisual.pdfY * pageInfo.scale : coord.y * pageInfo.scale
-                    const pinFontSize = Math.round(Math.max(10, Math.min(coord.size * pageInfo.scale, 14)))
+                    const displayX = isDragging && dragVisual ? dragVisual.pdfX * pageInfo.scale : coord.x * pageInfo.scale
+                    const displayY = isDragging && dragVisual ? dragVisual.pdfY * pageInfo.scale : coord.y * pageInfo.scale
+                    const pinFontSize = Math.round(Math.max(10, Math.min(mappingValue.fontSize * pageInfo.scale, 14)))
 
                     return (
                       <div
@@ -659,7 +680,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                           display: 'inline-flex', alignItems: 'center', gap: '3px',
                           backgroundColor: `${color}e6`, color: '#fff',
                           borderRadius: '3px', borderLeft: `3px solid ${color}`,
-                          padding: `1px 5px 1px 3px`,
+                          padding: '1px 5px 1px 3px',
                           fontSize: pinFontSize, fontFamily: 'Helvetica, Arial, sans-serif',
                           fontWeight: 700, lineHeight: 1.2, whiteSpace: 'nowrap',
                           cursor: isDragging ? 'grabbing' : 'grab',
@@ -674,12 +695,12 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                         }}
                       >
                         <span style={{ opacity: 0.65, fontSize: pinFontSize - 1 }}>⠿</span>
-                        {fieldLabel(path)}
+                        {fieldLabel(mappingValue.template)}
                       </div>
                     )
                   })}
 
-                  {/* ── Drag guide line ───────────────────────────────────── */}
+                  {/* Drag guide line */}
                   {isDraggingOnThisPage && dragVisual && (
                     <div style={{
                       position: 'absolute', pointerEvents: 'none', zIndex: 4,
@@ -695,7 +716,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
         </div>
       </div>
 
-      {/* ── RIGHT: control panel ────────────────────────────────────────────── */}
+      {/* ── RIGHT: control panel ──────────────────────────────────────────────── */}
       <div style={{ position: 'sticky', top: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
         {/* Place new field */}
@@ -710,35 +731,25 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
           </p>
 
           <div className="form-field">
-            <label className="form-label">Category</label>
-            <select className="form-select" value={activeCategory}
-              onChange={e => {
-                setActiveCategory(e.target.value)
-                setActiveField(DATA_PATHS[e.target.value][0])
-                if (e.target.value !== 'location') setLocationSlot(0)
-              }}>
-              {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <label className="form-label">Template</label>
+            <input
+              ref={templateInputRef}
+              className="form-input"
+              type="text"
+              value={newTemplate}
+              onChange={e => setNewTemplate(e.target.value)}
+              placeholder="{provider.first_name}"
+              style={{ fontFamily: 'monospace', fontSize: '12px' }}
+            />
           </div>
 
-          {activeCategory === 'location' && (
-            <div className="form-field">
-              <label className="form-label">Location slot</label>
-              <select className="form-select" value={locationSlot}
-                onChange={e => setLocationSlot(parseInt(e.target.value, 10))}>
-                {LOCATION_SLOT_LABELS.map((label, i) => (
-                  <option key={i} value={i}>{label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           <div className="form-field">
-            <label className="form-label">Field</label>
-            <select className="form-select" value={activeField}
-              onChange={e => setActiveField(e.target.value)}>
-              {DATA_PATHS[activeCategory].map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
+            <label className="form-label">Insert token</label>
+            <TokenInsertSelect
+              getVal={() => newTemplate}
+              setVal={setNewTemplate}
+              inputRef={templateInputRef}
+            />
           </div>
 
           <div className="form-field" style={{ marginBottom: 0 }}>
@@ -755,7 +766,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
         </div>
 
         {/* Selected pin editor */}
-        {selectedKey && selCat && selField !== null && selectedCoord && (
+        {selectedKey && selectedValue && selectedCoord && (
           <div style={{
             backgroundColor: '#fff',
             border: `2px solid ${colorForKey(selectedKey)}`,
@@ -778,52 +789,40 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
               </button>
             </div>
 
-            {/* Data path */}
             <div className="form-field">
-              <label className="form-label">Category</label>
-              <select className="form-select" value={selCat}
-                onChange={e => {
-                  const newCat = e.target.value
-                  updateSelectedField(newCat, DATA_PATHS[newCat][0], newCat === 'location' ? selSlot : 0)
-                }}>
-                {Object.keys(DATA_PATHS).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {selCat === 'location' && (
-              <div className="form-field">
-                <label className="form-label">Location slot</label>
-                <select className="form-select" value={selSlot}
-                  onChange={e => updateSelectedField('location', selField, parseInt(e.target.value, 10))}>
-                  {LOCATION_SLOT_LABELS.map((label, i) => (
-                    <option key={i} value={i}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="form-field">
-              <label className="form-label">Field</label>
-              <select className="form-select" value={selField}
-                onChange={e => updateSelectedField(selCat, e.target.value, selCat === 'location' ? selSlot : 0)}>
-                {DATA_PATHS[selCat]?.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+              <label className="form-label">Template</label>
+              <input
+                ref={selectedTemplateInputRef}
+                className="form-input"
+                type="text"
+                value={selectedValue.template}
+                onChange={e => updateSelectedTemplate(e.target.value)}
+                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+              />
             </div>
 
-            {/* Font size for this pin */}
+            <div className="form-field">
+              <label className="form-label">Insert token</label>
+              <TokenInsertSelect
+                getVal={() => selectedValue.template}
+                setVal={updateSelectedTemplate}
+                inputRef={selectedTemplateInputRef}
+              />
+            </div>
+
             <div className="form-field">
               <label className="form-label">Font size (pt)</label>
               <input
                 className="form-input"
                 type="number" min={4} max={24}
-                value={selectedCoord.size}
+                value={selectedValue.fontSize}
                 onChange={e => updatePinSize(selectedKey, Number(e.target.value))}
                 style={{ width: '70px' }}
               />
             </div>
 
-            {/* Precision X / Y controls */}
-            <div style={{
-              borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '2px',
-            }}>
+            {/* Position controls */}
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '2px' }}>
               <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', marginBottom: '8px' }}>
                 Position (PDF pts)
               </p>
@@ -850,7 +849,6 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                 </div>
               </div>
 
-              {/* Nudge arrow buttons */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '3px', width: '90px', margin: '0 auto' }}>
                 <div />
                 <button onClick={() => {
@@ -881,7 +879,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
               {mappingEntries.length} mapped
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              {mappingEntries.map(([key, path]) => {
+              {mappingEntries.map(([key, mappingValue]) => {
                 const isSel = selectedKey === key
                 return (
                   <div
@@ -896,7 +894,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                   >
                     <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, backgroundColor: colorForKey(key) }} />
                     <span style={{ fontSize: '11px', color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {fieldLabel(path)}
+                      {fieldLabel(mappingValue.template)}
                     </span>
                     <button
                       onClick={e => { e.stopPropagation(); removeMapping(key) }}
@@ -925,7 +923,6 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   )
 }
 
-// Small shared style for nudge arrow buttons
 const nudgeBtnStyle: React.CSSProperties = {
   width: 28, height: 28, borderRadius: '5px',
   border: '1px solid #e2e8f0', backgroundColor: '#f8fafc',

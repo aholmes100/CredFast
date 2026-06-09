@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { createClient } from '../../lib/supabase-server'
-import type { PdfFillPayload, Provider, Group, Location, EnrollmentApplication } from '../../types'
+import type { PdfFillPayload, Provider, Group, Location, EnrollmentApplication, FieldMappingValue } from '../../types'
 
 // ─── Resolve a data path like "provider.npi" against the payload ──────────────
 // Supports computed / virtual paths in addition to raw DB columns:
@@ -113,6 +113,79 @@ function parseCoord(fieldName: string): CoordPlacement | null {
   return null
 }
 
+// ─── Normalize a raw mapping value to FieldMappingValue ───────────────────────
+// Plain strings (legacy format) are wrapped; the font size is read from the
+// coordinate key so old entries don't silently lose their configured size.
+function normalizeMapping(key: string, v: string | FieldMappingValue): FieldMappingValue {
+  if (typeof v === 'string') {
+    return { template: v, fontSize: parseCoord(key)?.size ?? 10 }
+  }
+  return v
+}
+
+// ─── Interpolate a template string against the fill payload ───────────────────
+// Plain paths (no { } tokens) are forwarded to resolvePath unchanged so all
+// existing mappings continue to work without modification.
+//
+// Template tokens:
+//   {provider.npi}                          — single value
+//   {location.0.city}                       — slot-indexed location
+//   {provider.taxonomies[*].code}           — array expansion, join with ", "
+//   {provider.taxonomies[*].code|separator=; } — array expansion, custom separator
+function interpolateTemplate(template: string, payload: PdfFillPayload): string {
+  if (!template.includes('{')) {
+    // No tokens — backward-compat: treat as a plain resolvePath call
+    return resolvePath(template, payload)
+  }
+
+  return template.replace(/\{([^}]+)\}/g, (_, raw: string) => {
+    // Split off optional |separator=X suffix
+    const sepIdx = raw.indexOf('|separator=')
+    let path: string
+    let separator = ', '
+    if (sepIdx !== -1) {
+      path      = raw.slice(0, sepIdx)
+      separator = raw.slice(sepIdx + '|separator='.length)
+    } else {
+      path = raw
+    }
+
+    // Array expansion: prefix.field[*].subField
+    const starMatch = path.match(/^([^[]+)\[\*\]\.(.+)$/)
+    if (starMatch) {
+      const arrayPath = starMatch[1]  // e.g. "provider.taxonomies"
+      const subField  = starMatch[2]  // e.g. "code"
+
+      // Access the source object directly — resolvePath always returns a string,
+      // which would lose the array structure before we can iterate it.
+      const [prefix, ...rest] = arrayPath.split('.')
+      let source: Record<string, unknown> | null = null
+      if      (prefix === 'provider')    source = payload.provider    as unknown as Record<string, unknown>
+      else if (prefix === 'group')       source = payload.group       as unknown as Record<string, unknown>
+      else if (prefix === 'application') source = payload.application as unknown as Record<string, unknown>
+
+      if (!source) return ''
+      const arr = rest.length > 0 ? source[rest.join('.')] : null
+      if (!Array.isArray(arr)) return ''
+
+      return (arr as Record<string, unknown>[])
+        .map(item => {
+          if (item === null || item === undefined) return ''
+          if (typeof item === 'object') {
+            const v = (item as Record<string, unknown>)[subField]
+            return v === null || v === undefined ? '' : String(v)
+          }
+          return String(item)
+        })
+        .filter(Boolean)
+        .join(separator)
+    }
+
+    // Single value — delegate to existing resolver
+    return resolvePath(path, payload)
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { applicationId, payerFormId } = await req.json()
@@ -203,7 +276,7 @@ export async function POST(req: NextRequest) {
     // ── 3. Fill / overlay ─────────────────────────────────────────────────────
     const pdfBytes = await pdfBlob.arrayBuffer()
     const pdfDoc   = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
-    const mappings = (formData.field_mappings ?? {}) as Record<string, string>
+    const mappings = (formData.field_mappings ?? {}) as Record<string, string | FieldMappingValue>
 
     // Embed Helvetica once for coordinate-based drawing
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
@@ -217,19 +290,21 @@ export async function POST(req: NextRequest) {
     if (pdfForm) {
       for (const pdfField of pdfForm.getFields()) {
         const fieldName = pdfField.getName()
-        const dataPath  = mappings[fieldName]
-        if (!dataPath) continue
-        const value = resolvePath(dataPath, payload)
+        const rawVal = mappings[fieldName]
+        if (!rawVal) continue
+        const { template } = normalizeMapping(fieldName, rawVal)
+        const value = interpolateTemplate(template, payload)
         try { pdfForm.getTextField(fieldName).setText(value) } catch { /* checkbox / not a text field */ }
       }
     }
 
     // Coordinate-based text overlay (works on any PDF)
-    for (const [fieldName, dataPath] of Object.entries(mappings)) {
+    for (const [fieldName, rawVal] of Object.entries(mappings)) {
       const coord = parseCoord(fieldName)
       if (!coord) continue  // not a coordinate entry — handled above as AcroForm
 
-      const value = resolvePath(dataPath, payload)
+      const { template, fontSize } = normalizeMapping(fieldName, rawVal)
+      const value = interpolateTemplate(template, payload)
       if (!value) continue
 
       const pageIndex = coord.page - 1
@@ -238,12 +313,12 @@ export async function POST(req: NextRequest) {
       const page       = pages[pageIndex]
       const { height } = page.getSize()
       // Convert y from "top-down" to pdf-lib's "bottom-up"
-      const yBottomUp  = height - coord.y - coord.size
+      const yBottomUp  = height - coord.y - fontSize
 
       page.drawText(value, {
         x:    coord.x,
         y:    yBottomUp,
-        size: coord.size,
+        size: fontSize,
         font,
         color: rgb(0, 0, 0),
       })
@@ -284,7 +359,7 @@ export async function POST(req: NextRequest) {
           const repeatingCoordMappings = Object.entries(mappings).filter(([key]) => {
             const c = parseCoord(key)
             return c !== null && c.page === repeatingPageNum
-          }) as Array<[string, string]>
+          }) as Array<[string, string | FieldMappingValue]>
 
           if (repeatingCoordMappings.length === 0) {
             console.warn(
@@ -309,37 +384,37 @@ export async function POST(req: NextRequest) {
             const insertAt = repeatingPageIndex + cloneN
             pdfDoc.insertPage(insertAt, blankPage)
 
-            // Fill via coordinate overlay.
             const clonePage = pdfDoc.getPage(insertAt)
             const { height: cloneH } = clonePage.getSize()
 
-            for (const [key, dataPath] of repeatingCoordMappings) {
-              const coord = parseCoord(key)!  // already validated in the filter above
+            // Shift the locations array so slot 0 = original slot (cloneN * locationsPerPage).
+            // Templates like {location.0.city} automatically reference the correct location
+            // for this clone — no manual slot-index arithmetic required.
+            const clonePayload: PdfFillPayload = {
+              ...payload,
+              locations: payload.locations.slice(cloneN * locationsPerPage),
+            }
 
-              // Only slot-indexed location paths carry per-location data.
-              // Provider/group/application paths are the same on every clone and
-              // were already drawn on the base form's repeating page — skipping them
-              // here avoids duplicating static text on clones. If desired, remove
-              // this guard and they will be drawn on each clone as well.
-              const slotMatch = dataPath.match(/^location\.(\d+)\.(.+)$/)
-              if (!slotMatch) continue
+            for (const [key, rawVal] of repeatingCoordMappings) {
+              const coord = parseCoord(key)!
+              const { template, fontSize } = normalizeMapping(key, rawVal)
 
-              const slotIndex     = parseInt(slotMatch[1], 10)
-              const slotField     = slotMatch[2]
-              // Shift: clone N moves each slot index forward by N * locationsPerPage
-              const locationIndex = slotIndex + cloneN * locationsPerPage
-              const loc = (locations[locationIndex] ?? null) as unknown as Record<string, unknown> | null
-              if (!loc) continue
+              // Render only mappings that reference location data on clone pages.
+              // Non-location mappings (provider, group, application) were already
+              // drawn on the base form's repeating page; re-drawing them would
+              // duplicate static text on every clone.
+              //
+              // The regex matches both plain paths ("location.0.city") and template
+              // tokens ("{location.0.city}"), covering legacy and new mapping formats.
+              if (!/(?:^|\{)location\.\d+\./.test(template)) continue
 
-              const raw = loc[slotField]
-              if (raw === null || raw === undefined) continue
-              const value = typeof raw === 'boolean' ? (raw ? 'Yes' : 'No') : String(raw)
+              const value = interpolateTemplate(template, clonePayload)
               if (!value) continue
 
               clonePage.drawText(value, {
                 x:    coord.x,
-                y:    cloneH - coord.y - coord.size,
-                size: coord.size,
+                y:    cloneH - coord.y - fontSize,
+                size: fontSize,
                 font,
                 color: rgb(0, 0, 0),
               })

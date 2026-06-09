@@ -182,10 +182,33 @@ export interface EnrollmentApplicationLocation {
 // ============================================================
 
 /**
- * field_mappings format:
- *   { "PDF_FieldName": "provider.npi", "TaxID": "group.tax_id", ... }
+ * Per-field mapping value: template string + font size.
+ * Plain string values (legacy) are accepted wherever this type is expected and
+ * are normalized at read-time to { template: value, fontSize: <coord key size | 10> }.
  *
- * Supported data path prefixes:
+ * Template syntax:
+ *   Literal text mixed with {token} references:
+ *     "{provider.first_name} {provider.last_name}, {provider.credential_suffix}"
+ *     "{location.0.address_1}, {location.0.city}, {location.0.state} {location.0.zip}"
+ *   Array expansion (joins all items in an array field):
+ *     "{provider.taxonomies[*].code}"
+ *   Array expansion with custom separator:
+ *     "{provider.taxonomies[*].code|separator=; }"
+ *   A plain path with no {…} tokens is resolved by the legacy resolvePath function.
+ */
+export interface FieldMappingValue {
+  template: string
+  fontSize: number
+}
+
+/**
+ * field_mappings format:
+ *   { "PDF_FieldName": "provider.npi", "TaxID": "group.tax_id", ... }  ← legacy plain string
+ *   { "120,650,10": { template: "{provider.npi}", fontSize: 10 } }      ← new FieldMappingValue
+ *
+ * Both forms coexist in the same record; normalizeMapping() in route.ts handles the union.
+ *
+ * Supported data path prefixes in templates / plain paths:
  *   provider.*      → Provider columns
  *   group.*         → Group columns
  *   location.field  → Primary location (index 0) — legacy format
@@ -199,7 +222,7 @@ export interface PayerForm {
   name: string
   description: string | null
   storage_path: string | null
-  field_mappings: Record<string, string>
+  field_mappings: Record<string, string | FieldMappingValue>
   // Multi-location config (added in migration 16)
   pdf_type: 'single' | 'fixed' | 'repeating'
   repeating_page_index: number | null   // 0-indexed page that clones for overflow locations
