@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 
 export interface AppNotification {
@@ -34,8 +35,11 @@ const TYPE_ICON: Record<string, string> = {
 }
 
 export default function NotificationBell({ initialNotifications }: Props) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen]     = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications)
+
+  useEffect(() => setMounted(true), [])
 
   const unread = notifications.filter(n => !n.read_at).length
 
@@ -86,99 +90,101 @@ export default function NotificationBell({ initialNotifications }: Props) {
         )}
       </button>
 
-      {/* Backdrop */}
-      {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-        />
-      )}
+      {/* Portal: backdrop + panel rendered into document.body to escape sidebar stacking context */}
+      {open && mounted && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+          />
 
-      {/* Panel */}
-      {open && (
-        <div style={{
-          position: 'fixed', top: 0, left: '210px', width: '340px', height: '100vh',
-          backgroundColor: '#fff', borderRight: '1px solid #e2e8f0',
-          boxShadow: '4px 0 24px rgba(0,0,0,0.08)',
-          zIndex: 100, display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
-          {/* Panel header */}
+          {/* Panel */}
           <div style={{
-            padding: '16px 16px 12px', borderBottom: '1px solid #e2e8f0',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            flexShrink: 0,
+            position: 'fixed', top: 0, left: '210px', width: '340px', height: '100vh',
+            backgroundColor: '#fff', borderRight: '1px solid #e2e8f0',
+            boxShadow: '4px 0 24px rgba(0,0,0,0.08)',
+            zIndex: 1000, display: 'flex', flexDirection: 'column',
+            overflow: 'hidden',
           }}>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Notifications</div>
-              {unread > 0 && (
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
-                  {unread} unread
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {unread > 0 && (
-                <button
-                  onClick={markAllRead}
-                  style={{ fontSize: '11px', color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}
-                >
-                  Mark all read
-                </button>
-              )}
-              <button
-                onClick={() => setOpen(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px', lineHeight: 1, padding: 0 }}
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          {/* Notification list */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {notifications.length === 0 ? (
-              <div style={{ padding: '40px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔔</div>
-                <div style={{ fontSize: '13px', color: '#94a3b8' }}>No notifications yet</div>
+            {/* Panel header */}
+            <div style={{
+              padding: '16px 16px 12px', borderBottom: '1px solid #e2e8f0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexShrink: 0,
+            }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Notifications</div>
+                {unread > 0 && (
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
+                    {unread} unread
+                  </div>
+                )}
               </div>
-            ) : (
-              notifications.map(n => (
-                <div
-                  key={n.id}
-                  onClick={() => { if (!n.read_at) markRead(n.id) }}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid #f1f5f9',
-                    backgroundColor: n.read_at ? '#fff' : '#f5f3ff',
-                    cursor: n.read_at ? 'default' : 'pointer',
-                    transition: 'background-color 0.1s',
-                  }}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {unread > 0 && (
+                  <button
+                    onClick={markAllRead}
+                    style={{ fontSize: '11px', color: '#4f46e5', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={() => setOpen(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px', lineHeight: 1, padding: 0 }}
                 >
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>
-                      {TYPE_ICON[n.type] ?? '🔔'}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', marginBottom: '2px' }}>
-                        {n.title}
-                        {!n.read_at && (
-                          <span style={{ marginLeft: '6px', display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#4f46e5', verticalAlign: 'middle' }} />
-                        )}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.4', marginBottom: '4px' }}>
-                        {n.body}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                        {relativeTime(n.created_at)}
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Notification list */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '40px 16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔔</div>
+                  <div style={{ fontSize: '13px', color: '#94a3b8' }}>No notifications yet</div>
+                </div>
+              ) : (
+                notifications.map(n => (
+                  <div
+                    key={n.id}
+                    onClick={() => { if (!n.read_at) markRead(n.id) }}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: '1px solid #f1f5f9',
+                      backgroundColor: n.read_at ? '#fff' : '#f5f3ff',
+                      cursor: n.read_at ? 'default' : 'pointer',
+                      transition: 'background-color 0.1s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>
+                        {TYPE_ICON[n.type] ?? '🔔'}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', marginBottom: '2px' }}>
+                          {n.title}
+                          {!n.read_at && (
+                            <span style={{ marginLeft: '6px', display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#4f46e5', verticalAlign: 'middle' }} />
+                          )}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.4', marginBottom: '4px' }}>
+                          {n.body}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          {relativeTime(n.created_at)}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </>
   )
