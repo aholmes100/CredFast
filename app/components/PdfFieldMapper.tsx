@@ -3,49 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { FieldMappingValue } from '../types'
+import TemplateFieldPicker, { tokenDisplayName } from './TemplateFieldPicker'
 
-const DATA_PATHS: Record<string, string[]> = {
-  provider: [
-    'full_name', 'middle_initial',
-    'first_name', 'last_name', 'middle_name', 'credential_suffix',
-    'npi', 'email', 'phone', 'date_of_birth', 'gender',
-    'ssn', 'provider_tax_id',
-    'specialty', 'secondary_specialty', 'taxonomy_code',
-    'languages', 'hospital_affiliation',
-    'is_pcp', 'accepting_new_patients',
-    'is_pcp_yes', 'is_pcp_no',
-    'accepting_new_patients_yes', 'accepting_new_patients_no',
-    'license_number', 'license_state', 'license_expiration',
-    'dea_number', 'caqh_number', 'medicaid_number', 'medicare_number',
-    'malpractice_carrier', 'malpractice_policy', 'malpractice_expiration',
-    'malpractice_per_occurrence', 'malpractice_aggregate',
-    'medical_school', 'graduation_year', 'residency_program', 'residency_completion',
-    'fellowship_program', 'fellowship_completion',
-    'board_certified', 'board_specialty', 'board_expiration',
-  ],
-  group: [
-    'name', 'legal_name', 'tax_id', 'group_npi', 'taxonomy_code',
-    'medicaid_group_number', 'medicare_group_number', 'practice_type',
-    'authorized_official_name', 'authorized_official_title',
-    'authorized_official_phone', 'authorized_official_email',
-    'credentialing_contact_name', 'credentialing_contact_email',
-    'credentialing_contact_phone', 'credentialing_contact_fax',
-    'billing_name', 'billing_address_1', 'billing_address_2',
-    'billing_city', 'billing_state', 'billing_zip',
-    'billing_phone', 'billing_fax',
-  ],
-  location: [
-    'name', 'address_1', 'address_2', 'city', 'state', 'zip', 'county',
-    'mailing_address_1', 'mailing_address_2',
-    'mailing_city', 'mailing_state', 'mailing_zip',
-    'phone', 'fax', 'facility_type', 'accepts_new_patients', 'handicap_accessible',
-    'accepts_medicaid', 'accepts_medicare', 'hours_mon_fri', 'hours_weekend',
-  ],
-  application: ['status', 'submitted_at', 'approved_at', 'effective_date', 'payer_reference'],
-  static: ['overflow'],
-}
-
-const LOCATION_SLOT_LABELS = ['Primary (1st)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5']
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
 const PIN_COLORS = ['#4f46e5', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#be185d', '#a16207']
 
@@ -76,37 +35,8 @@ function normalizeInitial(raw: Record<string, string | FieldMappingValue>): Reco
 }
 
 function fieldLabel(template: string): string {
-  // Extract first {token} if present, otherwise treat as plain path
-  const tokenMatch = template.match(/\{([^}]+)\}/)
-  const path = tokenMatch ? tokenMatch[1].replace(/\|separator=.*$/, '') : template
-  const locSlot = path.match(/^location\.(\d+)\.(.+)$/)
-  if (locSlot) return `loc[${parseInt(locSlot[1]) + 1}]: ${locSlot[2]}`
-  return path
-    .replace('provider.', '')
-    .replace('group.', 'grp: ')
-    .replace('location.', 'loc: ')
-    .replace('application.', 'app: ')
-    .replace('static.', '')
-}
-
-function insertToken(
-  token: string,
-  inputRef: React.RefObject<HTMLInputElement | null>,
-  getVal: () => string,
-  setVal: (v: string) => void,
-) {
-  const input = inputRef.current
-  const current = getVal()
-  const start = input?.selectionStart ?? current.length
-  const end = input?.selectionEnd ?? start
-  const next = current.slice(0, start) + token + current.slice(end)
-  setVal(next)
-  requestAnimationFrame(() => {
-    if (input) {
-      input.setSelectionRange(start + token.length, start + token.length)
-      input.focus()
-    }
-  })
+  const m = template.match(/(\{[^}]+\})/)
+  return m ? tokenDisplayName(m[1]) : (template.slice(0, 20) || '(empty)')
 }
 
 interface PageMetadata {
@@ -189,8 +119,6 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   const dragVisualRef = useRef<{ key: string; pdfX: number; pdfY: number } | null>(null)
   const mappingsRef = useRef<Record<string, FieldMappingValue>>({})
   const selectedKeyRef = useRef<string | null>(null)
-  const templateInputRef = useRef<HTMLInputElement | null>(null)
-  const selectedTemplateInputRef = useRef<HTMLInputElement | null>(null)
 
   mappingsRef.current = mappings
   selectedKeyRef.current = selectedKey
@@ -467,51 +395,6 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   const selectedValue = selectedKey ? (mappings[selectedKey] ?? null) : null
   const selectedCoord = selectedKey ? parseKey(selectedKey) : null
 
-  // ── Token insert select (rendered in two places) ──────────────────────────────
-  const TokenInsertSelect = ({
-    getVal,
-    setVal,
-    inputRef,
-  }: {
-    getVal: () => string
-    setVal: (v: string) => void
-    inputRef: React.RefObject<HTMLInputElement | null>
-  }) => (
-    <select
-      value=""
-      onChange={e => { if (e.target.value) insertToken(e.target.value, inputRef, getVal, setVal) }}
-      className="form-select"
-      style={{ fontSize: '11px' }}
-    >
-      <option value="">Insert token…</option>
-      <optgroup label="Provider">
-        {DATA_PATHS.provider.map(f => (
-          <option key={f} value={`{provider.${f}}`}>{`provider.${f}`}</option>
-        ))}
-      </optgroup>
-      <optgroup label="Group">
-        {DATA_PATHS.group.map(f => (
-          <option key={f} value={`{group.${f}}`}>{`group.${f}`}</option>
-        ))}
-      </optgroup>
-      {[0, 1, 2, 3, 4].map(slot => (
-        <optgroup key={slot} label={LOCATION_SLOT_LABELS[slot]}>
-          {DATA_PATHS.location.map(f => (
-            <option key={f} value={`{location.${slot}.${f}}`}>{`loc.${slot}.${f}`}</option>
-          ))}
-        </optgroup>
-      ))}
-      <optgroup label="Application">
-        {DATA_PATHS.application.map(f => (
-          <option key={f} value={`{application.${f}}`}>{`application.${f}`}</option>
-        ))}
-      </optgroup>
-      <optgroup label="Static">
-        <option value="{static.overflow}">static.overflow</option>
-      </optgroup>
-    </select>
-  )
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: '16px', alignItems: 'start' }}>
 
@@ -731,25 +614,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
           </p>
 
           <div className="form-field">
-            <label className="form-label">Template</label>
-            <input
-              ref={templateInputRef}
-              className="form-input"
-              type="text"
-              value={newTemplate}
-              onChange={e => setNewTemplate(e.target.value)}
-              placeholder="{provider.first_name}"
-              style={{ fontFamily: 'monospace', fontSize: '12px' }}
-            />
-          </div>
-
-          <div className="form-field">
-            <label className="form-label">Insert token</label>
-            <TokenInsertSelect
-              getVal={() => newTemplate}
-              setVal={setNewTemplate}
-              inputRef={templateInputRef}
-            />
+            <TemplateFieldPicker value={newTemplate} onChange={setNewTemplate} />
           </div>
 
           <div className="form-field" style={{ marginBottom: 0 }}>
@@ -790,24 +655,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
             </div>
 
             <div className="form-field">
-              <label className="form-label">Template</label>
-              <input
-                ref={selectedTemplateInputRef}
-                className="form-input"
-                type="text"
-                value={selectedValue.template}
-                onChange={e => updateSelectedTemplate(e.target.value)}
-                style={{ fontFamily: 'monospace', fontSize: '12px' }}
-              />
-            </div>
-
-            <div className="form-field">
-              <label className="form-label">Insert token</label>
-              <TokenInsertSelect
-                getVal={() => selectedValue.template}
-                setVal={updateSelectedTemplate}
-                inputRef={selectedTemplateInputRef}
-              />
+              <TemplateFieldPicker value={selectedValue.template} onChange={updateSelectedTemplate} />
             </div>
 
             <div className="form-field">

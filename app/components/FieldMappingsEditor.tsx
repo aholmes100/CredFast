@@ -1,43 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { FieldMappingValue } from '../types'
-
-const DATA_PATHS: Record<string, string[]> = {
-  provider: [
-    'first_name', 'last_name', 'npi', 'email', 'date_of_birth', 'gender',
-    'specialty', 'taxonomy_code',
-    'license_number', 'license_state', 'license_expiration',
-    'dea_number', 'caqh_number', 'medicaid_number', 'medicare_number',
-    'malpractice_carrier', 'malpractice_policy', 'malpractice_expiration',
-    'malpractice_per_occurrence', 'malpractice_aggregate',
-    'medical_school', 'graduation_year',
-    'residency_program', 'residency_completion',
-    'fellowship_program', 'fellowship_completion',
-    'board_certified', 'board_specialty', 'board_expiration',
-    'accepting_new_patients',
-  ],
-  group: [
-    'name', 'legal_name', 'tax_id', 'group_npi', 'taxonomy_code',
-    'medicaid_group_number', 'medicare_group_number', 'practice_type',
-    'authorized_official_name', 'authorized_official_title',
-    'authorized_official_phone', 'authorized_official_email',
-  ],
-  location: [
-    'name', 'address_1', 'address_2', 'city', 'state', 'zip', 'county',
-    'phone', 'fax', 'facility_type',
-    'accepts_new_patients', 'handicap_accessible',
-    'accepts_medicaid', 'accepts_medicare',
-    'hours_mon_fri', 'hours_weekend',
-  ],
-  application: [
-    'status', 'submitted_at', 'approved_at', 'effective_date', 'payer_reference',
-  ],
-  static: ['overflow'],
-}
-
-const LOCATION_SLOT_LABELS = ['Primary (1st)', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5']
+import TemplateFieldPicker from './TemplateFieldPicker'
 
 interface DetectedField { name: string; type: string }
 
@@ -61,26 +27,6 @@ function normalizeInitial(raw: Record<string, string | FieldMappingValue>): Reco
     }
   }
   return result
-}
-
-function insertToken(
-  token: string,
-  inputRef: React.RefObject<HTMLInputElement | null>,
-  getVal: () => string,
-  setVal: (v: string) => void,
-) {
-  const input = inputRef.current
-  const current = getVal()
-  const start = input?.selectionStart ?? current.length
-  const end = input?.selectionEnd ?? start
-  const next = current.slice(0, start) + token + current.slice(end)
-  setVal(next)
-  requestAnimationFrame(() => {
-    if (input) {
-      input.setSelectionRange(start + token.length, start + token.length)
-      input.focus()
-    }
-  })
 }
 
 export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }: Props) {
@@ -108,8 +54,6 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
   const [detectError, setDetectError] = useState<string | null>(null)
   // View PDF
   const [loadingUrl, setLoadingUrl] = useState(false)
-
-  const newTemplateInputRef = useRef<HTMLInputElement | null>(null)
 
   // ── View PDF ──────────────────────────────────────────────────────────────────
   const handleViewPdf = async () => {
@@ -192,45 +136,6 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
 
   const isCoordKey = (k: string) => /^\d/.test(k) && k.includes(',')
   const mappedFields = new Set(Object.keys(mappings))
-
-  // ── Token insert select ───────────────────────────────────────────────────────
-  const TokenInsertSelect = () => (
-    <select
-      value=""
-      onChange={e => {
-        if (e.target.value) insertToken(e.target.value, newTemplateInputRef, () => newTemplate, setNewTemplate)
-      }}
-      className="form-select"
-      style={{ fontSize: '11px' }}
-    >
-      <option value="">Insert token…</option>
-      <optgroup label="Provider">
-        {DATA_PATHS.provider.map(f => (
-          <option key={f} value={`{provider.${f}}`}>{`provider.${f}`}</option>
-        ))}
-      </optgroup>
-      <optgroup label="Group">
-        {DATA_PATHS.group.map(f => (
-          <option key={f} value={`{group.${f}}`}>{`group.${f}`}</option>
-        ))}
-      </optgroup>
-      {[0, 1, 2, 3, 4].map(slot => (
-        <optgroup key={slot} label={LOCATION_SLOT_LABELS[slot]}>
-          {DATA_PATHS.location.map(f => (
-            <option key={f} value={`{location.${slot}.${f}}`}>{`loc.${slot}.${f}`}</option>
-          ))}
-        </optgroup>
-      ))}
-      <optgroup label="Application">
-        {DATA_PATHS.application.map(f => (
-          <option key={f} value={`{application.${f}}`}>{`application.${f}`}</option>
-        ))}
-      </optgroup>
-      <optgroup label="Static">
-        <option value="{static.overflow}">static.overflow</option>
-      </optgroup>
-    </select>
-  )
 
   return (
     <div>
@@ -358,7 +263,7 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
               <strong>How to find coordinates:</strong> Click <em>View PDF</em> above to open the form in a new tab. In your browser&apos;s PDF viewer, hover over a field — the status bar shows the cursor position. On a standard letter page (612 × 792 pt), X goes left→right, Y goes top→bottom.
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '80px 80px 60px', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '80px 80px 60px', gap: '8px', marginBottom: '12px' }}>
               <div className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label">X (left)</label>
                 <input className="form-input" type="number" value={coordX} onChange={e => setCoordX(e.target.value)} placeholder="e.g. 120" />
@@ -373,30 +278,15 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '8px', alignItems: 'end' }}>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Template</label>
-                <input
-                  ref={newTemplateInputRef}
-                  className="form-input"
-                  type="text"
-                  value={newTemplate}
-                  onChange={e => setNewTemplate(e.target.value)}
-                  placeholder="{provider.first_name}"
-                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                />
-              </div>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Token</label>
-                <TokenInsertSelect />
-              </div>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Size</label>
-                <input className="form-input" type="number" min={6} max={24} value={newFontSize} onChange={e => setNewFontSize(Number(e.target.value))} style={{ width: '60px' }} />
-              </div>
+            <div className="form-field" style={{ marginBottom: '8px' }}>
+              <TemplateFieldPicker value={newTemplate} onChange={setNewTemplate} />
             </div>
 
-            <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '8px' }}>
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label className="form-label">Font size (pt)</label>
+                <input className="form-input" type="number" min={6} max={24} value={newFontSize} onChange={e => setNewFontSize(Number(e.target.value))} style={{ width: '70px' }} />
+              </div>
               <button onClick={addMapping} className="btn btn-secondary btn-sm">Add</button>
             </div>
 
@@ -408,28 +298,17 @@ export default function FieldMappingsEditor({ formId, initialMappings, hasPdf }:
           </>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '8px', alignItems: 'end' }}>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">PDF Field Name</label>
-                <input className="form-input" value={newPdfField} onChange={e => setNewPdfField(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMapping()} placeholder="e.g. Last_Name" />
-              </div>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Template</label>
-                <input
-                  ref={newTemplateInputRef}
-                  className="form-input"
-                  type="text"
-                  value={newTemplate}
-                  onChange={e => setNewTemplate(e.target.value)}
-                  placeholder="{provider.first_name}"
-                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                />
-              </div>
-              <div className="form-field" style={{ marginBottom: 0 }}>
-                <label className="form-label">Token</label>
-                <TokenInsertSelect />
-              </div>
-              <button onClick={addMapping} className="btn btn-secondary btn-sm" style={{ alignSelf: 'end' }}>Add</button>
+            <div className="form-field" style={{ marginBottom: '8px' }}>
+              <label className="form-label">PDF Field Name</label>
+              <input className="form-input" value={newPdfField} onChange={e => setNewPdfField(e.target.value)} onKeyDown={e => e.key === 'Enter' && addMapping()} placeholder="e.g. Last_Name" />
+            </div>
+
+            <div className="form-field" style={{ marginBottom: '8px' }}>
+              <TemplateFieldPicker value={newTemplate} onChange={setNewTemplate} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={addMapping} className="btn btn-secondary btn-sm">Add</button>
             </div>
           </>
         )}
