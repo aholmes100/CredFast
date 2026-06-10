@@ -39,6 +39,17 @@ function fieldLabel(template: string): string {
   return m ? tokenDisplayName(m[1]) : (template.slice(0, 20) || '(empty)')
 }
 
+interface DetectedField {
+  fieldName: string
+  fieldType: string
+  page: number
+  /** PDF pts, top-down origin */
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 interface PageMetadata {
   pageNum: number
   pdfWidth: number
@@ -105,6 +116,11 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
   // Guide crosshair
   const [guidePos, setGuidePos] = useState<{ pageNum: number; y: number; x: number } | null>(null)
 
+  // AcroForm field detection
+  const [detectedFields, setDetectedFields] = useState<DetectedField[]>([])
+  const [showFieldBoxes, setShowFieldBoxes] = useState(false)
+  const [hoveredField, setHoveredField] = useState<string | null>(null)
+
   // Save state
   const [saving, setSaving] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -129,6 +145,8 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     setPdfLoading(true)
     setPdfError(null)
     setPageMetadata([])
+    setDetectedFields([])
+    setShowFieldBoxes(false)
     canvasEls.current = []
     if (pdfDocRef.current) { pdfDocRef.current.destroy(); pdfDocRef.current = null }
 
@@ -215,6 +233,44 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
       canvasEls.current.forEach(c => { if (c) { c.width = 1; c.height = 1 } })
     }
   }, [pages])
+
+  // ── Effect 3: detect AcroForm field boxes ─────────────────────────────────────
+  // Depends on pageMetadata (not pages) so zoom changes don't trigger re-detection.
+  useEffect(() => {
+    if (pageMetadata.length === 0 || !pdfDocRef.current) return
+    let cancelled = false
+
+    async function detectAll() {
+      const fields: DetectedField[] = []
+      for (const meta of pageMetadata) {
+        if (cancelled) break
+        const page = await pdfDocRef.current.getPage(meta.pageNum)
+        if (cancelled) break
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const annotations: any[] = await page.getAnnotations({ intent: 'display' })
+        for (const ann of annotations) {
+          if (ann.subtype !== 'Widget') continue
+          const [x1, y1, x2, y2] = ann.rect as number[]
+          fields.push({
+            fieldName: ann.fieldName ?? ann.id ?? '',
+            fieldType: ann.fieldType ?? 'Tx',
+            page: meta.pageNum,
+            x: x1,
+            y: meta.pdfHeight - y2,   // convert bottom-up PDF coords to top-down
+            w: x2 - x1,
+            h: y2 - y1,
+          })
+        }
+      }
+      if (!cancelled) {
+        setDetectedFields(fields)
+        if (fields.length > 0) setShowFieldBoxes(true)
+      }
+    }
+
+    detectAll()
+    return () => { cancelled = true }
+  }, [pageMetadata])
 
   // ── Global drag handlers ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -309,6 +365,18 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
     setMappings(prev => ({ ...prev, [key]: { template, fontSize } }))
     setSelectedKey(key)
     setIsDirty(true)
+  }
+
+  // ── Click on detected field box ───────────────────────────────────────────────
+  const handleFieldBoxClick = (f: DetectedField) => {
+    if (dragStateRef.current?.hasMoved) return
+    const key = buildKey(f.page, f.x, f.y)
+    if (!(key in mappingsRef.current)) {
+      const autoFontSize = Math.max(6, Math.min(Math.floor(f.h * 0.6), 12))
+      setMappings(prev => ({ ...prev, [key]: { template: '', fontSize: autoFontSize } }))
+      setIsDirty(true)
+    }
+    setSelectedKey(key)
   }
 
   // ── Start dragging a pin ──────────────────────────────────────────────────────
@@ -406,6 +474,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
             display: 'flex', alignItems: 'center', gap: '6px',
             marginBottom: '10px', padding: '6px 10px',
             backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px',
+            flexWrap: 'wrap',
           }}>
             <button
               onClick={zoomOut}
@@ -453,6 +522,29 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
               ))}
             </div>
 
+            {/* Field box toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', marginLeft: '8px' }}>
+              {detectedFields.length > 0 ? (
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  fontSize: '11px', color: '#0f766e', cursor: 'pointer', userSelect: 'none',
+                  backgroundColor: showFieldBoxes ? '#f0fdfa' : 'transparent',
+                  border: `1px solid ${showFieldBoxes ? '#99f6e4' : '#e2e8f0'}`,
+                  borderRadius: '5px', padding: '2px 7px',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showFieldBoxes}
+                    onChange={e => setShowFieldBoxes(e.target.checked)}
+                    style={{ margin: 0, accentColor: '#0d9488' }}
+                  />
+                  {detectedFields.length} field{detectedFields.length !== 1 ? 's' : ''} detected
+                </label>
+              ) : (
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>No fillable fields detected — place manually</span>
+              )}
+            </div>
+
             <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: 'auto' }}>
               {selectedKey ? 'Arrow keys nudge 1pt · Shift+arrow = 5pt' : 'Click to place · Drag to reposition'}
             </span>
@@ -470,6 +562,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
 
           {pages.map((pageInfo, i) => {
             const pagePins = mappingEntries.filter(([key]) => parseKey(key)?.page === pageInfo.pageNum)
+            const pageFields = detectedFields.filter(f => f.page === pageInfo.pageNum)
             const isDraggingOnThisPage = dragVisual && parseKey(dragVisual.key)?.page === pageInfo.pageNum
             const guideScreenSize = Math.round(Math.max(11, Math.min(fontSize * pageInfo.scale, 15)))
 
@@ -488,7 +581,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                     const rect = e.currentTarget.getBoundingClientRect()
                     setGuidePos({ pageNum: pageInfo.pageNum, y: e.clientY - rect.top, x: e.clientX - rect.left })
                   }}
-                  onMouseLeave={() => setGuidePos(null)}
+                  onMouseLeave={() => { setGuidePos(null); setHoveredField(null) }}
                   style={{
                     position: 'relative', display: 'inline-block',
                     cursor: 'crosshair',
@@ -541,7 +634,73 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                     </>
                   )}
 
-                  {/* Placed pins */}
+                  {/* ── AcroForm field box overlays (below pins) ── */}
+                  {showFieldBoxes && pageFields.map(f => {
+                    const fx = f.x * pageInfo.scale
+                    const fy = f.y * pageInfo.scale
+                    const fw = f.w * pageInfo.scale
+                    const fh = f.h * pageInfo.scale
+                    const fKey = buildKey(f.page, f.x, f.y)
+                    const isMapped = fKey in mappings
+                    const isSelected = selectedKey === fKey
+                    const isHovered = hoveredField === `${f.page}-${f.x}-${f.y}`
+
+                    return (
+                      <div
+                        key={`${f.page}-${f.x}-${f.y}`}
+                        onClick={e => { e.stopPropagation(); handleFieldBoxClick(f) }}
+                        onMouseEnter={() => setHoveredField(`${f.page}-${f.x}-${f.y}`)}
+                        onMouseLeave={() => setHoveredField(null)}
+                        style={{
+                          position: 'absolute',
+                          left: fx, top: fy, width: fw, height: fh,
+                          boxSizing: 'border-box',
+                          cursor: 'pointer',
+                          zIndex: 6,
+                          borderRadius: '2px',
+                          border: isMapped
+                            ? `2px solid ${isSelected ? '#15803d' : '#16a34a'}`
+                            : isHovered
+                              ? '2px solid #0d9488'
+                              : '1.5px solid #14b8a6',
+                          backgroundColor: isMapped
+                            ? isSelected
+                              ? 'rgba(22,163,74,0.18)'
+                              : 'rgba(22,163,74,0.10)'
+                            : isHovered
+                              ? 'rgba(20,184,166,0.18)'
+                              : 'rgba(20,184,166,0.06)',
+                          boxShadow: isSelected ? `0 0 0 2px #fff, 0 0 0 4px #16a34a` : 'none',
+                          transition: 'background-color 0.1s, border-color 0.1s',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {isMapped && (
+                          <span style={{
+                            position: 'absolute', top: 1, right: 2,
+                            fontSize: Math.max(8, Math.min(fh * 0.55, 11)),
+                            color: '#15803d', lineHeight: 1, fontWeight: 700,
+                            pointerEvents: 'none',
+                          }}>✓</span>
+                        )}
+                        {!isMapped && fh > 14 && (
+                          <span style={{
+                            position: 'absolute', top: '50%', left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            fontSize: Math.max(7, Math.min(fh * 0.42, 10)),
+                            color: isHovered ? 'rgba(13,148,136,0.9)' : 'rgba(20,184,166,0.7)',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '92%', overflow: 'hidden', textOverflow: 'ellipsis',
+                            lineHeight: 1, pointerEvents: 'none',
+                          }}>
+                            {f.fieldName}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Placed pins (above field boxes) */}
                   {pagePins.map(([key, mappingValue]) => {
                     const coord = parseKey(key)
                     if (!coord) return null
@@ -600,7 +759,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
       </div>
 
       {/* ── RIGHT: control panel ──────────────────────────────────────────────── */}
-      <div style={{ position: 'sticky', top: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ position: 'sticky', top: '24px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', paddingRight: '2px' }}>
 
         {/* Place new field */}
         <div style={{
