@@ -34,9 +34,12 @@ function normalizeInitial(raw: Record<string, string | FieldMappingValue>): Reco
   return result
 }
 
-function fieldLabel(template: string): string {
+function fieldLabel(template: string, key?: string): string {
   const m = template.match(/(\{[^}]+\})/)
-  return m ? tokenDisplayName(m[1]) : (template.slice(0, 20) || '(empty)')
+  if (m) return tokenDisplayName(m[1])
+  if (template) return template.slice(0, 20)
+  if (key) return key
+  return 'Unmapped'
 }
 
 interface DetectedField {
@@ -737,7 +740,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                         }}
                       >
                         <span style={{ opacity: 0.65, fontSize: pinFontSize - 1 }}>⠿</span>
-                        {fieldLabel(mappingValue.template)}
+                        {fieldLabel(mappingValue.template, key)}
                       </div>
                     )
                   })}
@@ -901,7 +904,7 @@ export default function PdfFieldMapper({ formId, initialMappings }: Props) {
                   >
                     <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, backgroundColor: colorForKey(key) }} />
                     <span style={{ fontSize: '11px', color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {fieldLabel(mappingValue.template)}
+                      {fieldLabel(mappingValue.template, key)}
                     </span>
                     <button
                       onClick={e => { e.stopPropagation(); removeMapping(key) }}
