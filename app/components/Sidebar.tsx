@@ -17,6 +17,7 @@ const NAV_GROUPS = [
     links: [
       { href: '/providers',    label: 'Providers' },
       { href: '/import',      label: 'Import' },
+      { href: '/import-mt',   label: 'MT Import' },
       { href: '/groups',       label: 'Groups' },
       { href: '/locations',    label: 'Locations' },
       { href: '/assignments',  label: 'Assignments' },
