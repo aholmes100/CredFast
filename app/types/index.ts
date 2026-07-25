@@ -335,6 +335,17 @@ export interface ProviderLicense {
   updated_at: string | null
 }
 
+export interface ProviderIdentifier {
+  id: string
+  provider_id: string
+  identifier_type: string   // 'dea' | 'medicaid' | 'medicare' | ...
+  state: string | null
+  identifier_value: string
+  effective_date: string | null
+  is_primary: boolean
+  created_at: string
+}
+
 export interface ProviderMalpractice {
   id: string
   provider_id: string

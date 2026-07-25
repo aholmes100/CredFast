@@ -251,6 +251,7 @@ async function insertIdentifiers(
   if (!raw.trim()) return
   const toIns: Record<string, unknown>[] = []
   let isPrimary = true
+  if (type === 'dea') console.log('[DEA] insertIdentifiers parsed entries:', JSON.stringify(parseMultiValue(raw)))
   for (const parts of parseMultiValue(raw)) {
     if (hasState) {
       const value = parts[1] ?? ''
@@ -275,7 +276,11 @@ async function insertIdentifiers(
     }
     isPrimary = false
   }
-  if (toIns.length > 0) await supabase.from('provider_identifiers').insert(toIns)
+  if (toIns.length > 0) {
+    if (type === 'dea') console.log('[DEA] insertIdentifiers inserting:', JSON.stringify(toIns))
+    const { error: insErr } = await supabase.from('provider_identifiers').insert(toIns)
+    if (type === 'dea' && insErr) console.error('[DEA] insertIdentifiers Supabase error:', insErr)
+  }
 }
 
 // For existing providers: per-item upsert using pre-fetched identifierMap
@@ -290,6 +295,7 @@ async function upsertIdentifiers(
   identifierMap: Map<string, string>,
 ) {
   if (!raw.trim()) return
+  if (type === 'dea') console.log('[DEA] upsertIdentifiers parsed entries:', JSON.stringify(parseMultiValue(raw)))
   for (const parts of parseMultiValue(raw)) {
     const value  = hasState ? (parts[1] ?? '') : (parts[0] ?? '')
     if (!value) continue
@@ -297,14 +303,18 @@ async function upsertIdentifiers(
     const expiry = hasExpiry ? normalizeDate(hasState ? (parts[2] ?? '') : '') : null
     const mapKey = `${providerId}:${type}:${state ?? ''}`
     const existId = identifierMap.get(mapKey)
+    if (type === 'dea') console.log('[DEA] upsertIdentifiers entry — value:', value, 'state:', state, 'mapKey:', mapKey, 'existId:', existId ?? '(none)')
     if (!existId) {
-      const { data: ins, error: insErr } = await supabase.from('provider_identifiers').insert({
+      const insertObj = {
         organization_id: orgId, provider_id: providerId,
         identifier_type: type, state,
         identifier_value: value,
         effective_date: expiry,
         is_primary: false,
-      }).select('id').single()
+      }
+      if (type === 'dea') console.log('[DEA] upsertIdentifiers inserting:', JSON.stringify(insertObj))
+      const { data: ins, error: insErr } = await supabase.from('provider_identifiers').insert(insertObj).select('id').single()
+      if (type === 'dea' && insErr) console.error('[DEA] upsertIdentifiers insert error:', insErr)
       if (!insErr && ins) identifierMap.set(mapKey, (ins as { id: string }).id)
     } else if (mode === 'overwrite') {
       await supabase.from('provider_identifiers').update({
@@ -354,7 +364,7 @@ async function importProviders(
   const [
     { data: groupsData },
     { data: locsData },
-    { data: existProvData },
+    { data: existProvData, error: existProvError },
     { data: existLicData },
     { data: existIdData },
   ] = await Promise.all([
@@ -384,6 +394,7 @@ async function importProviders(
     locsByGroup.get(l.group_id)!.push(l.id)
   }
 
+  console.log('[NPI PREFETCH] count:', existProvData?.length, 'error:', existProvError)
   const npiMap = new Map<string, ExistingProvider>()
   for (const p of (existProvData ?? []) as ExistingProvider[]) {
     npiMap.set(p.npi, p)
@@ -428,10 +439,12 @@ async function importProviders(
     const languages  = langLines.length > 0 ? langLines.map(p => p[0]).filter(Boolean).join(', ') : null
     const licRaw     = cv(row, C.licenses)
 
+    console.log('[NPI LOOKUP] looking for:', JSON.stringify(npi), 'found:', npiMap.has(npi))
     const existProv = npiMap.get(npi)
 
     if (existProv) {
       // ── Existing provider: upsert ────────────────────────────────────────
+      console.log('[UPSERT PATH] hit for NPI:', npi)
       const pid = existProv.id
 
       const allFields: Record<string, unknown> = {
@@ -489,6 +502,7 @@ async function importProviders(
       }
 
       // Identifiers — upsert via identifierMap
+      console.log('[DEA] raw cell (existing provider):', JSON.stringify(cv(row, C.deas)))
       await upsertIdentifiers(orgId, pid, cv(row, C.deas),     'dea',      true,  true,  mode, identifierMap)
       await upsertIdentifiers(orgId, pid, cv(row, C.cdss),     'cds',      true,  true,  mode, identifierMap)
       await upsertIdentifiers(orgId, pid, cv(row, C.medicaid), 'medicaid', true,  false, mode, identifierMap)
@@ -565,6 +579,7 @@ async function importProviders(
     }
 
     // Identifiers: batch insert
+    console.log('[DEA] raw cell (new provider):', JSON.stringify(cv(row, C.deas)))
     await insertIdentifiers(orgId, pid, cv(row, C.deas),     'dea',      true,  true)
     await insertIdentifiers(orgId, pid, cv(row, C.cdss),     'cds',      true,  true)
     await insertIdentifiers(orgId, pid, cv(row, C.medicaid), 'medicaid', true,  false)

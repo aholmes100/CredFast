@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '../../lib/supabase-server'
-import type { Provider, EnrollmentWithPayer } from '../../types'
+import type { Provider, EnrollmentWithPayer, ProviderLicense, ProviderIdentifier } from '../../types'
 import ProviderEditor from '../../components/ProviderEditor'
 import DeleteButton from '../../components/DeleteButton'
 import DocumentList, { type ProviderDocument } from '../../components/DocumentList'
@@ -41,6 +41,7 @@ export default async function ProviderDetailPage({
     { data: assignmentRows },
     { data: docRows },
     { data: licenseRows },
+    { data: identifierRows },
     { data: enrollmentRows },
     { data: allPayerRows },
   ] = await Promise.all([
@@ -61,6 +62,11 @@ export default async function ProviderDetailPage({
       .eq('provider_id', id)
       .order('is_primary', { ascending: false }),
     supabase
+      .from('provider_identifiers')
+      .select('*')
+      .eq('provider_id', id)
+      .order('identifier_type'),
+    supabase
       .from('provider_payer_enrollments')
       .select('*, payers(id, name)')
       .eq('provider_id', id)
@@ -73,20 +79,17 @@ export default async function ProviderDetailPage({
 
   if (error || !data) notFound()
 
-  const provider   = data as Provider
-  const documents  = (docRows ?? []) as unknown as ProviderDocument[]
-  const licenses   = (licenseRows ?? []) as unknown as LicenseRow[]
+  const provider    = data as Provider
+  const documents   = (docRows ?? []) as unknown as ProviderDocument[]
+  const licenses    = (licenseRows ?? []) as unknown as ProviderLicense[]
+  const identifiers = (identifierRows ?? []) as unknown as ProviderIdentifier[]
   const enrollments = (enrollmentRows ?? []) as unknown as EnrollmentWithPayer[]
-  const allPayers  = (allPayerRows ?? []) as { id: string; name: string }[]
+  const allPayers   = (allPayerRows ?? []) as { id: string; name: string }[]
 
   type AssignmentRow = {
     id: string; is_primary: boolean; is_active: boolean
     groups: { id: string; name: string } | null
     locations: { id: string; name: string; address_1: string | null; city: string | null; state: string | null } | null
-  }
-  type LicenseRow = {
-    id: string; state: string; license_number: string; license_type: string
-    status: string; expiration_date: string | null; is_primary: boolean
   }
 
   const assignments = (assignmentRows ?? []) as unknown as AssignmentRow[]
@@ -200,44 +203,13 @@ export default async function ProviderDetailPage({
             </div>
           </div>
 
-          {/* State Licenses */}
-          {licenses.length > 0 && (
-            <div className="card-lg" style={{ marginBottom: '16px' }}>
-              <p className="section-label">State Licenses</p>
-              <div className="row-list">
-                {licenses.map((lic) => (
-                  <div key={lic.id} className="row-list-item">
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>
-                        {lic.state} — {lic.license_number}
-                      </span>
-                      {lic.is_primary && (
-                        <span style={{ marginLeft: '8px', fontSize: '10px', color: '#4f46e5', backgroundColor: '#eef2ff', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>Primary</span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>{lic.license_type}</span>
-                    {lic.expiration_date && (() => {
-                      const days = Math.ceil((new Date(lic.expiration_date).getTime() - Date.now()) / 86400000)
-                      const color = days < 0 ? '#dc2626' : days < 90 ? '#d97706' : '#15803d'
-                      const bg    = days < 0 ? '#fef2f2' : days < 90 ? '#fffbeb' : '#f0fdf4'
-                      const border= days < 0 ? '#fecaca' : days < 90 ? '#fde68a' : '#bbf7d0'
-                      return (
-                        <span style={{ fontSize: '11px', fontWeight: 600, color, backgroundColor: bg, border: `1px solid ${border}`, borderRadius: '4px', padding: '2px 6px' }}>
-                          {days < 0 ? '⚠ Expired' : `exp ${fmtDate(lic.expiration_date)}`}
-                        </span>
-                      )
-                    })()}
-                    <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', backgroundColor: lic.status === 'active' ? '#f0fdf4' : '#fef2f2', color: lic.status === 'active' ? '#15803d' : '#b91c1c' }}>
-                      {lic.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Editable provider fields */}
-          <ProviderEditor provider={provider} />
+          <ProviderEditor
+            provider={provider}
+            orgId={orgId}
+            initialLicenses={licenses}
+            initialIdentifiers={identifiers}
+          />
         </div>
       )}
 
