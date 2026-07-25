@@ -260,7 +260,7 @@ async function insertIdentifiers(
         identifier_type: type,
         state: parts[0] || null,
         identifier_value: value,
-        expiration_date: hasExpiry ? normalizeDate(parts[2] ?? '') : null,
+        effective_date: hasExpiry ? normalizeDate(parts[2] ?? '') : null,
         is_primary: isPrimary,
       })
     } else {
@@ -269,7 +269,7 @@ async function insertIdentifiers(
       toIns.push({
         organization_id: orgId, provider_id: providerId,
         identifier_type: type, state: null,
-        identifier_value: value, expiration_date: null,
+        identifier_value: value, effective_date: null,
         is_primary: isPrimary,
       })
     }
@@ -302,14 +302,14 @@ async function upsertIdentifiers(
         organization_id: orgId, provider_id: providerId,
         identifier_type: type, state,
         identifier_value: value,
-        expiration_date: expiry,
+        effective_date: expiry,
         is_primary: false,
       }).select('id').single()
       if (!insErr && ins) identifierMap.set(mapKey, (ins as { id: string }).id)
     } else if (mode === 'overwrite') {
       await supabase.from('provider_identifiers').update({
         identifier_value: value,
-        ...(hasExpiry ? { expiration_date: expiry } : {}),
+        ...(hasExpiry ? { effective_date: expiry } : {}),
       }).eq('id', existId)
     }
   }
@@ -474,17 +474,15 @@ async function importProviders(
             const { data: newLic } = await supabase.from('provider_licenses').insert({
               organization_id: orgId, provider_id: pid,
               state: licState, license_number: licNum,
-              license_type:    parts[2] || 'Unknown',
-              status:          parts[4] || 'Active',
-              expiration_date: normalizeDate(parts[3] ?? ''),
+              license_type:    null,
+              status:          'Active',
+              expiration_date: normalizeDate(parts[2] ?? ''),
               is_primary: false,
             }).select('id').single()
             if (newLic) licenseMap.set(licKey, (newLic as { id: string }).id)
           } else if (mode === 'overwrite') {
             await supabase.from('provider_licenses').update({
-              license_type:    parts[2] || 'Unknown',
-              status:          parts[4] || 'Active',
-              expiration_date: normalizeDate(parts[3] ?? ''),
+              expiration_date: normalizeDate(parts[2] ?? ''),
             }).eq('id', existLicId)
           }
         }
@@ -556,9 +554,9 @@ async function importProviders(
         licIns.push({
           organization_id: orgId, provider_id: pid,
           state: licState, license_number: licNum,
-          license_type:    parts[2] || 'Unknown',
-          status:          parts[4] || 'Active',
-          expiration_date: normalizeDate(parts[3] ?? ''),
+          license_type:    null,
+          status:          'Active',
+          expiration_date: normalizeDate(parts[2] ?? ''),
           is_primary:      isPrimary,
         })
         isPrimary = false
