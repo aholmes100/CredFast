@@ -7,35 +7,28 @@ import NotificationBell, { type AppNotification } from './NotificationBell'
 
 const NAV_GROUPS = [
   {
-    label: null,
-    links: [
-      { href: '/dashboard', label: 'Dashboard' },
-    ],
-  },
-  {
     label: 'Credentialing',
     links: [
-      { href: '/providers',    label: 'Providers' },
-      { href: '/import-data', label: 'Data Import' },
-      { href: '/groups',       label: 'Groups' },
-      { href: '/locations',    label: 'Locations' },
-      { href: '/assignments',  label: 'Assignments' },
+      { href: '/providers',  label: 'Providers' },
+      { href: '/groups',     label: 'Groups' },
+      { href: '/locations',  label: 'Locations' },
     ],
   },
   {
     label: 'Enrollment',
     links: [
       { href: '/applications', label: 'Applications' },
-      { href: '/reports',      label: 'Reports' },
       { href: '/payers',       label: 'Payers' },
       { href: '/payer-forms',  label: 'Payer Forms' },
-      { href: '/rosters',     label: 'Rosters' },
+      { href: '/rosters',      label: 'Rosters' },
+      { href: '/reports',      label: 'Reports' },
     ],
   },
   {
-    label: 'Files',
+    label: 'Tools',
     links: [
-      { href: '/documents', label: 'Documents' },
+      { href: '/import-data', label: 'Data Import' },
+      { href: '/documents',   label: 'Documents' },
     ],
   },
 ]
