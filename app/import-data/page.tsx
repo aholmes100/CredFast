@@ -86,6 +86,8 @@ async function importLocations(
   mode: ImportMode,
   onProgress: (p: number) => void,
 ): Promise<MtResult> {
+  if (!orgId) throw new Error('Organization ID is not available. Please refresh and try again.')
+
   const C = {
     division:    ci(headers, 'division'),
     name:        ci(headers, 'location name'),
@@ -333,6 +335,8 @@ async function importProviders(
   mode: ImportMode,
   onProgress: (p: number) => void,
 ): Promise<MtResult> {
+  if (!orgId) throw new Error('Organization ID is not available. Please refresh and try again.')
+
   const C = {
     firstName:   ci(headers, 'first name'),
     lastName:    ci(headers, 'last name'),
