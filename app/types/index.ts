@@ -61,6 +61,7 @@ export interface Provider {
 export interface Group {
   id: string
   name: string
+  division_code: string | null
   legal_name: string | null
   tax_id: string | null
   group_npi: string | null

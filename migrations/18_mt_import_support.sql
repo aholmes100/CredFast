@@ -74,9 +74,12 @@ CREATE TABLE IF NOT EXISTS provider_identifiers (
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 
--- Defensive: ensure organization_id exists if table was created by an earlier attempt without it
+-- Defensive: ensure columns exist if table was created by an earlier attempt without them
 ALTER TABLE provider_identifiers
   ADD COLUMN IF NOT EXISTS organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE provider_identifiers
+  ADD COLUMN IF NOT EXISTS is_primary boolean NOT NULL DEFAULT false;
 
 ALTER TABLE provider_identifiers ENABLE ROW LEVEL SECURITY;
 

@@ -12,10 +12,11 @@ export default function NewGroupPage() {
   async function handleSubmit(formData: FormData) {
     if (!orgId) { alert('Organization not loaded yet. Please wait.'); return }
     const { error } = await supabase.from('groups').insert([{
-      name:            formData.get('name')       as string,
-      legal_name:      formData.get('legal_name') as string,
-      tax_id:          formData.get('tax_id')     as string,
-      group_npi:       formData.get('group_npi')  as string,
+      name:            formData.get('name')          as string,
+      division_code:   (formData.get('division_code') as string) || null,
+      legal_name:      formData.get('legal_name')    as string,
+      tax_id:          formData.get('tax_id')        as string,
+      group_npi:       formData.get('group_npi')     as string,
       organization_id: orgId,
     }])
 
@@ -33,6 +34,11 @@ export default function NewGroupPage() {
           <div className="form-field">
             <label className="form-label">Group Name</label>
             <input className="form-input" name="name" placeholder="Acme Medical Group" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Division Code</label>
+            <input className="form-input" name="division_code" placeholder="e.g. RVMD" />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>Short abbreviation used to identify this group (e.g. RVMD, CLNC). Used for data imports.</p>
           </div>
           <div className="form-field">
             <label className="form-label">Legal Name</label>

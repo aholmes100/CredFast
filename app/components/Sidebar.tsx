@@ -16,8 +16,7 @@ const NAV_GROUPS = [
     label: 'Credentialing',
     links: [
       { href: '/providers',    label: 'Providers' },
-      { href: '/import',      label: 'Import' },
-      { href: '/import-mt',   label: 'MT Import' },
+      { href: '/import-data', label: 'Data Import' },
       { href: '/groups',       label: 'Groups' },
       { href: '/locations',    label: 'Locations' },
       { href: '/assignments',  label: 'Assignments' },

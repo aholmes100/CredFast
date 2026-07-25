@@ -8,9 +8,26 @@ import { useOrganizationId } from '../lib/use-organization-id'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type MtStep = 'idle' | 'previewing' | 'importing' | 'done'
+type ImportMode = 'fill' | 'overwrite'
 
 interface FlaggedRow { rowIndex: number; label: string; reason: string }
-interface MtResult { imported: number; skipped: number; flagged: FlaggedRow[] }
+interface MtResult { imported: number; updated: number; skipped: number; flagged: FlaggedRow[] }
+
+type ExistingLoc = {
+  id: string; group_id: string | null; name: string
+  facility_type: string | null; address_1: string | null; state: string | null
+  zip: string | null; county: string | null; mailing_address_1: string | null
+  phone: string | null; fax: string | null; notes: string | null
+}
+
+type ExistingProvider = {
+  id: string; npi: string; first_name: string; last_name: string
+  middle_name: string | null; ssn: string | null; date_of_birth: string | null
+  gender: string | null; languages: string | null; email: string | null
+  phone: string | null; specialty: string | null; taxonomy_code: string | null
+  medical_school: string | null; graduation_year: number | null
+  residency_program: string | null; residency_completion: number | null
+}
 
 // ── Pure helpers ───────────────────────────────────────────────────────────────
 function parseXlsxFile(file: File): Promise<{ headers: string[]; rows: string[][] }> {
@@ -66,6 +83,7 @@ async function importLocations(
   orgId: string,
   headers: string[],
   rows: string[][],
+  mode: ImportMode,
   onProgress: (p: number) => void,
 ): Promise<MtResult> {
   const C = {
@@ -95,7 +113,9 @@ async function importLocations(
 
   const [{ data: groupsData }, { data: locData }] = await Promise.all([
     supabase.from('groups').select('id, name, division_code').eq('organization_id', orgId),
-    supabase.from('locations').select('group_id, name').eq('organization_id', orgId),
+    supabase.from('locations')
+      .select('id, group_id, name, facility_type, address_1, state, zip, county, mailing_address_1, phone, fax, notes')
+      .eq('organization_id', orgId),
   ])
 
   const groupByDiv = new Map<string, { id: string; name: string }>()
@@ -103,12 +123,12 @@ async function importLocations(
     if (g.division_code) groupByDiv.set(g.division_code.toLowerCase(), { id: g.id, name: g.name })
   }
 
-  const existingLocSet = new Set<string>()
-  for (const l of (locData ?? []) as { group_id: string | null; name: string }[]) {
-    if (l.group_id && l.name) existingLocSet.add(`${l.group_id}:${l.name.toLowerCase()}`)
+  const existingLocMap = new Map<string, ExistingLoc>()
+  for (const l of (locData ?? []) as ExistingLoc[]) {
+    if (l.group_id && l.name) existingLocMap.set(`${l.group_id}:${l.name.toLowerCase()}`, l)
   }
 
-  let imported = 0, skipped = 0
+  let imported = 0, updated = 0, skipped = 0
   const flagged: FlaggedRow[] = []
 
   for (let i = 0; i < rows.length; i++) {
@@ -128,8 +148,34 @@ async function importLocations(
     }
 
     const dupKey = `${group.id}:${locName.toLowerCase()}`
-    if (existingLocSet.has(dupKey)) { skipped++; continue }
+    const existing = existingLocMap.get(dupKey)
 
+    if (existing) {
+      const emailVal = cv(row, C.email)
+      const candidate: Record<string, string | null> = {
+        facility_type:     cv(row, C.type) || null,
+        address_1:         cv(row, C.address) || null,
+        state:             cv(row, C.state) || null,
+        zip:               cv(row, C.zip) || null,
+        county:            cv(row, C.county) || null,
+        mailing_address_1: cv(row, C.mailing) || null,
+        phone:             cv(row, C.phone) || null,
+        fax:               cv(row, C.fax) || null,
+        notes:             emailVal ? `Email: ${emailVal}` : null,
+      }
+      const upd: Record<string, string | null> = {}
+      for (const [k, v] of Object.entries(candidate)) {
+        if (v === null) continue
+        if (mode === 'overwrite' || !existing[k as keyof ExistingLoc]) upd[k] = v
+      }
+      if (Object.keys(upd).length > 0) {
+        await supabase.from('locations').update(upd).eq('id', existing.id)
+      }
+      updated++
+      continue
+    }
+
+    // New location
     const grpMed = cv(row, C.grpMedicaid)
     const grpMcare = cv(row, C.grpMedicare)
     if (grpMed || grpMcare) {
@@ -140,7 +186,7 @@ async function importLocations(
     }
 
     const emailVal = cv(row, C.email)
-    const { error: locErr } = await supabase.from('locations').insert({
+    const insertPayload = {
       organization_id:    orgId,
       group_id:           group.id,
       name:               locName,
@@ -153,37 +199,47 @@ async function importLocations(
       phone:              cv(row, C.phone) || null,
       fax:                cv(row, C.fax) || null,
       notes:              emailVal ? `Email: ${emailVal}` : null,
-    })
+    }
+    const { data: newLoc, error: locErr } = await supabase.from('locations').insert(insertPayload).select('id').single()
 
-    if (locErr) {
-      flagged.push({ rowIndex: i, label: locName, reason: `DB error: ${locErr.message}` })
+    if (locErr || !newLoc) {
+      flagged.push({ rowIndex: i, label: locName, reason: `DB error: ${locErr?.message ?? 'unknown'}` })
       continue
     }
-    existingLocSet.add(dupKey)
+
+    existingLocMap.set(dupKey, {
+      id: (newLoc as { id: string }).id, group_id: group.id, name: locName,
+      facility_type: insertPayload.facility_type, address_1: insertPayload.address_1,
+      state: insertPayload.state, zip: insertPayload.zip, county: insertPayload.county,
+      mailing_address_1: insertPayload.mailing_address_1, phone: insertPayload.phone,
+      fax: insertPayload.fax, notes: insertPayload.notes,
+    })
 
     // Update group with non-empty values only
     const orgNpiRaw = cv(row, C.orgNpi)
     const firstNpi = orgNpiRaw ? (parseMultiValue(orgNpiRaw)[0]?.[0] ?? '') : ''
-    const upd: Record<string, string> = {}
-    if (cv(row, C.taxId))       upd.tax_id = cv(row, C.taxId)
-    if (cv(row, C.legalName))   upd.legal_name = cv(row, C.legalName)
-    if (cv(row, C.dba))         upd.name = cv(row, C.dba)
-    if (cv(row, C.credName))    upd.credentialing_contact_name = cv(row, C.credName)
-    if (cv(row, C.credPhone))   upd.credentialing_contact_phone = cv(row, C.credPhone)
-    if (cv(row, C.credFax))     upd.credentialing_contact_fax = cv(row, C.credFax)
-    if (cv(row, C.credEmail))   upd.credentialing_contact_email = cv(row, C.credEmail)
-    if (firstNpi)               upd.group_npi = firstNpi
-    if (cv(row, C.orgTaxonomy)) upd.taxonomy_code = cv(row, C.orgTaxonomy)
-    if (Object.keys(upd).length > 0) await supabase.from('groups').update(upd).eq('id', group.id)
+    const groupUpd: Record<string, string> = {}
+    if (cv(row, C.taxId))       groupUpd.tax_id = cv(row, C.taxId)
+    if (cv(row, C.legalName))   groupUpd.legal_name = cv(row, C.legalName)
+    if (cv(row, C.dba))         groupUpd.name = cv(row, C.dba)
+    if (cv(row, C.credName))    groupUpd.credentialing_contact_name = cv(row, C.credName)
+    if (cv(row, C.credPhone))   groupUpd.credentialing_contact_phone = cv(row, C.credPhone)
+    if (cv(row, C.credFax))     groupUpd.credentialing_contact_fax = cv(row, C.credFax)
+    if (cv(row, C.credEmail))   groupUpd.credentialing_contact_email = cv(row, C.credEmail)
+    if (firstNpi)               groupUpd.group_npi = firstNpi
+    if (cv(row, C.orgTaxonomy)) groupUpd.taxonomy_code = cv(row, C.orgTaxonomy)
+    if (Object.keys(groupUpd).length > 0) await supabase.from('groups').update(groupUpd).eq('id', group.id)
 
     imported++
   }
 
   onProgress(100)
-  return { imported, skipped, flagged }
+  return { imported, updated, skipped, flagged }
 }
 
-// ── Provider identifiers helper ────────────────────────────────────────────────
+// ── Provider identifiers helpers ───────────────────────────────────────────────
+
+// For new providers: batch insert, first entry marked is_primary
 async function insertIdentifiers(
   orgId: string,
   providerId: string,
@@ -222,11 +278,49 @@ async function insertIdentifiers(
   if (toIns.length > 0) await supabase.from('provider_identifiers').insert(toIns)
 }
 
+// For existing providers: per-item upsert using pre-fetched identifierMap
+async function upsertIdentifiers(
+  orgId: string,
+  providerId: string,
+  raw: string,
+  type: string,
+  hasState: boolean,
+  hasExpiry: boolean,
+  mode: ImportMode,
+  identifierMap: Map<string, string>,
+) {
+  if (!raw.trim()) return
+  for (const parts of parseMultiValue(raw)) {
+    const value  = hasState ? (parts[1] ?? '') : (parts[0] ?? '')
+    if (!value) continue
+    const state  = hasState ? (parts[0] || null) : null
+    const expiry = hasExpiry ? normalizeDate(hasState ? (parts[2] ?? '') : '') : null
+    const mapKey = `${providerId}:${type}:${state ?? ''}`
+    const existId = identifierMap.get(mapKey)
+    if (!existId) {
+      const { data: ins, error: insErr } = await supabase.from('provider_identifiers').insert({
+        organization_id: orgId, provider_id: providerId,
+        identifier_type: type, state,
+        identifier_value: value,
+        expiration_date: expiry,
+        is_primary: false,
+      }).select('id').single()
+      if (!insErr && ins) identifierMap.set(mapKey, (ins as { id: string }).id)
+    } else if (mode === 'overwrite') {
+      await supabase.from('provider_identifiers').update({
+        identifier_value: value,
+        ...(hasExpiry ? { expiration_date: expiry } : {}),
+      }).eq('id', existId)
+    }
+  }
+}
+
 // ── Providers import logic ─────────────────────────────────────────────────────
 async function importProviders(
   orgId: string,
   headers: string[],
   rows: string[][],
+  mode: ImportMode,
   onProgress: (p: number) => void,
 ): Promise<MtResult> {
   const C = {
@@ -257,10 +351,25 @@ async function importProviders(
     training:    ci(headers, 'professional training'),
   }
 
-  const [{ data: groupsData }, { data: locsData }, { data: existNpiData }] = await Promise.all([
+  const [
+    { data: groupsData },
+    { data: locsData },
+    { data: existProvData },
+    { data: existLicData },
+    { data: existIdData },
+  ] = await Promise.all([
     supabase.from('groups').select('id, division_code').eq('organization_id', orgId),
     supabase.from('locations').select('id, group_id').eq('organization_id', orgId),
-    supabase.from('providers').select('npi').eq('organization_id', orgId).not('npi', 'is', null),
+    supabase.from('providers')
+      .select('id, npi, first_name, last_name, middle_name, ssn, date_of_birth, gender, languages, email, phone, specialty, taxonomy_code, medical_school, graduation_year, residency_program, residency_completion')
+      .eq('organization_id', orgId)
+      .not('npi', 'is', null),
+    supabase.from('provider_licenses')
+      .select('id, provider_id, state, license_number')
+      .eq('organization_id', orgId),
+    supabase.from('provider_identifiers')
+      .select('id, provider_id, identifier_type, state')
+      .eq('organization_id', orgId),
   ])
 
   const groupByDiv = new Map<string, string>()
@@ -275,9 +384,22 @@ async function importProviders(
     locsByGroup.get(l.group_id)!.push(l.id)
   }
 
-  const npiSet = new Set<string>((existNpiData ?? []).map(p => (p as { npi: string }).npi))
+  const npiMap = new Map<string, ExistingProvider>()
+  for (const p of (existProvData ?? []) as ExistingProvider[]) {
+    npiMap.set(p.npi, p)
+  }
 
-  let imported = 0, skipped = 0
+  const licenseMap = new Map<string, string>()
+  for (const l of (existLicData ?? []) as { id: string; provider_id: string; state: string; license_number: string }[]) {
+    licenseMap.set(`${l.provider_id}:${l.state}:${l.license_number}`, l.id)
+  }
+
+  const identifierMap = new Map<string, string>()
+  for (const d of (existIdData ?? []) as { id: string; provider_id: string; identifier_type: string; state: string | null }[]) {
+    identifierMap.set(`${d.provider_id}:${d.identifier_type}:${d.state ?? ''}`, d.id)
+  }
+
+  let imported = 0, updated = 0, skipped = 0
   const flagged: FlaggedRow[] = []
 
   for (let i = 0; i < rows.length; i++) {
@@ -293,25 +415,95 @@ async function importProviders(
       flagged.push({ rowIndex: i, label, reason: `Missing required: ${missing.join(', ')}` })
       continue
     }
-    if (npiSet.has(npi)) { skipped++; continue }
 
-    // Parse specialties: first multi-value line → [specialty, taxonomy_code]
-    const specParts = parseMultiValue(cv(row, C.specialties))[0] ?? []
-
-    // Parse education: first line, extract 4-digit year
-    const eduParts = parseMultiValue(cv(row, C.education))[0] ?? []
-    const medSchool = eduParts[0] || null
-    const gradYear = eduParts.map(p => parseInt(p)).find(n => n >= 1950 && n <= 2100) ?? null
-
-    // Parse training: first line, extract 4-digit year
+    // Parse computed fields (needed for both new and existing providers)
+    const specParts  = parseMultiValue(cv(row, C.specialties))[0] ?? []
+    const eduParts   = parseMultiValue(cv(row, C.education))[0] ?? []
+    const medSchool  = eduParts[0] || null
+    const gradYear   = eduParts.map(p => parseInt(p)).find(n => n >= 1950 && n <= 2100) ?? null
     const trainParts = parseMultiValue(cv(row, C.training))[0] ?? []
-    const residProg = trainParts[0] || null
-    const residComp = trainParts.map(p => parseInt(p)).find(n => n >= 1950 && n <= 2100) ?? null
+    const residProg  = trainParts[0] || null
+    const residComp  = trainParts.map(p => parseInt(p)).find(n => n >= 1950 && n <= 2100) ?? null
+    const langLines  = parseMultiValue(cv(row, C.languages))
+    const languages  = langLines.length > 0 ? langLines.map(p => p[0]).filter(Boolean).join(', ') : null
+    const licRaw     = cv(row, C.licenses)
 
-    // Languages: join all first-parts with comma
-    const langLines = parseMultiValue(cv(row, C.languages))
-    const languages = langLines.length > 0 ? langLines.map(p => p[0]).filter(Boolean).join(', ') : null
+    const existProv = npiMap.get(npi)
 
+    if (existProv) {
+      // ── Existing provider: upsert ────────────────────────────────────────
+      const pid = existProv.id
+
+      const allFields: Record<string, unknown> = {
+        middle_name:          cv(row, C.middleName) || null,
+        ssn:                  cv(row, C.ssn) || null,
+        date_of_birth:        normalizeDate(cv(row, C.dob)),
+        gender:               cv(row, C.gender) || null,
+        languages,
+        email:                cv(row, C.email) || null,
+        phone:                cv(row, C.phone) || null,
+        specialty:            specParts[0] || null,
+        taxonomy_code:        specParts[1] || null,
+        medical_school:       medSchool,
+        graduation_year:      gradYear,
+        residency_program:    residProg,
+        residency_completion: residComp,
+      }
+      const provUpd: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(allFields)) {
+        if (v === null || v === undefined) continue
+        if (mode === 'overwrite') {
+          provUpd[k] = v
+        } else {
+          const cur = existProv[k as keyof ExistingProvider]
+          if (cur === null || cur === undefined || cur === '') provUpd[k] = v
+        }
+      }
+      if (Object.keys(provUpd).length > 0) {
+        await supabase.from('providers').update(provUpd).eq('id', pid)
+      }
+
+      // Licenses — check licenseMap, insert missing, update if overwrite
+      if (licRaw) {
+        for (const parts of parseMultiValue(licRaw)) {
+          const licState = parts[0]; const licNum = parts[1]
+          if (!licState || !licNum) continue
+          const licKey   = `${pid}:${licState}:${licNum}`
+          const existLicId = licenseMap.get(licKey)
+          if (!existLicId) {
+            const { data: newLic } = await supabase.from('provider_licenses').insert({
+              organization_id: orgId, provider_id: pid,
+              state: licState, license_number: licNum,
+              license_type:    parts[2] || 'Unknown',
+              status:          parts[4] || 'Active',
+              expiration_date: normalizeDate(parts[3] ?? ''),
+              is_primary: false,
+            }).select('id').single()
+            if (newLic) licenseMap.set(licKey, (newLic as { id: string }).id)
+          } else if (mode === 'overwrite') {
+            await supabase.from('provider_licenses').update({
+              license_type:    parts[2] || 'Unknown',
+              status:          parts[4] || 'Active',
+              expiration_date: normalizeDate(parts[3] ?? ''),
+            }).eq('id', existLicId)
+          }
+        }
+      }
+
+      // Identifiers — upsert via identifierMap
+      await upsertIdentifiers(orgId, pid, cv(row, C.deas),     'dea',      true,  true,  mode, identifierMap)
+      await upsertIdentifiers(orgId, pid, cv(row, C.cdss),     'cds',      true,  true,  mode, identifierMap)
+      await upsertIdentifiers(orgId, pid, cv(row, C.medicaid), 'medicaid', true,  false, mode, identifierMap)
+      await upsertIdentifiers(orgId, pid, cv(row, C.medicare), 'medicare', true,  false, mode, identifierMap)
+      await upsertIdentifiers(orgId, pid, cv(row, C.upin),     'upin',     false, false, mode, identifierMap)
+      await upsertIdentifiers(orgId, pid, cv(row, C.ecfmg),    'ecfmg',    false, false, mode, identifierMap)
+      await upsertIdentifiers(orgId, pid, cv(row, C.usmle),    'usmle',    false, false, mode, identifierMap)
+
+      updated++
+      continue
+    }
+
+    // ── New provider: insert ─────────────────────────────────────────────────
     const { data: newProv, error: provErr } = await supabase
       .from('providers')
       .insert({
@@ -340,20 +532,30 @@ async function importProviders(
       flagged.push({ rowIndex: i, label, reason: `DB error: ${provErr?.message ?? 'unknown'}` })
       continue
     }
-    npiSet.add(npi)
+
     const pid = (newProv as { id: string }).id
 
-    // Licenses: state | number | type | expiration | status
-    const licRaw = cv(row, C.licenses)
+    // Track in map so a duplicate NPI later in the same file goes through upsert
+    npiMap.set(npi, {
+      id: pid, npi, first_name: firstName, last_name: lastName,
+      middle_name: cv(row, C.middleName) || null, ssn: cv(row, C.ssn) || null,
+      date_of_birth: normalizeDate(cv(row, C.dob)), gender: cv(row, C.gender) || null,
+      languages, email: cv(row, C.email) || null, phone: cv(row, C.phone) || null,
+      specialty: specParts[0] || null, taxonomy_code: specParts[1] || null,
+      medical_school: medSchool, graduation_year: gradYear,
+      residency_program: residProg, residency_completion: residComp,
+    })
+
+    // Licenses: bulk insert, track is_primary
     if (licRaw) {
       const licIns: Record<string, unknown>[] = []
       let isPrimary = true
       for (const parts of parseMultiValue(licRaw)) {
-        const state = parts[0]; const licNum = parts[1]
-        if (!state || !licNum) continue
+        const licState = parts[0]; const licNum = parts[1]
+        if (!licState || !licNum) continue
         licIns.push({
           organization_id: orgId, provider_id: pid,
-          state, license_number: licNum,
+          state: licState, license_number: licNum,
           license_type:    parts[2] || 'Unknown',
           status:          parts[4] || 'Active',
           expiration_date: normalizeDate(parts[3] ?? ''),
@@ -364,7 +566,7 @@ async function importProviders(
       if (licIns.length > 0) await supabase.from('provider_licenses').insert(licIns)
     }
 
-    // Identifiers
+    // Identifiers: batch insert
     await insertIdentifiers(orgId, pid, cv(row, C.deas),     'dea',      true,  true)
     await insertIdentifiers(orgId, pid, cv(row, C.cdss),     'cds',      true,  true)
     await insertIdentifiers(orgId, pid, cv(row, C.medicaid), 'medicaid', true,  false)
@@ -378,7 +580,6 @@ async function importProviders(
     const divisionVal   = cv(row, C.division).toLowerCase()
     const locsRaw       = cv(row, C.locations)
 
-    // Collect division codes to assign: from Locations column (state|division per line)
     const assignDivs: string[] = []
     if (locsRaw) {
       for (const parts of parseMultiValue(locsRaw)) {
@@ -413,10 +614,30 @@ async function importProviders(
   }
 
   onProgress(100)
-  return { imported, skipped, flagged }
+  return { imported, updated, skipped, flagged }
 }
 
 // ── Shared UI components ───────────────────────────────────────────────────────
+function ModeSelector({ mode, setMode, name }: { mode: ImportMode; setMode: (m: ImportMode) => void; name: string }) {
+  return (
+    <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '10px' }}>Import mode</div>
+      {([
+        ['fill',      'Fill gaps only', 'Only update blank fields, never overwrite existing data'] as const,
+        ['overwrite', 'Overwrite all',  'Replace all fields with data from the import file']      as const,
+      ]).map(([val, label, desc]) => (
+        <label key={val} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: val === 'fill' ? '8px' : 0, cursor: 'pointer' }}>
+          <input type="radio" name={name} value={val} checked={mode === val} onChange={() => setMode(val)} style={{ marginTop: '2px', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>{label}</div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{desc}</div>
+          </div>
+        </label>
+      ))}
+    </div>
+  )
+}
+
 function DropZone({ onFile, dragOver, setDragOver }: {
   onFile: (f: File) => void
   dragOver: boolean
@@ -441,7 +662,7 @@ function DropZone({ onFile, dragOver, setDragOver }: {
         Drop your .xlsx file here, or click to browse
       </div>
       <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px' }}>
-        MedTrainer Excel export (.xlsx only)
+        Excel export (.xlsx only)
       </div>
       <button className="btn btn-primary" onClick={e => { e.stopPropagation(); ref.current?.click() }}>
         Choose File
@@ -490,11 +711,12 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: string[][] }
 
 function ResultCards({ result }: { result: MtResult }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }}>
       {[
-        { count: result.imported,        label: 'Imported',              color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', active: result.imported > 0 },
-        { count: result.skipped,         label: 'Skipped (duplicates)',  color: '#b45309', bg: '#fffbeb', border: '#fde68a', active: result.skipped > 0 },
-        { count: result.flagged.length,  label: 'Flagged for review',    color: '#dc2626', bg: '#fef2f2', border: '#fecaca', active: result.flagged.length > 0 },
+        { count: result.imported,       label: 'Imported',            color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', active: result.imported > 0 },
+        { count: result.updated,        label: 'Updated',             color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', active: result.updated > 0 },
+        { count: result.skipped,        label: 'Skipped',             color: '#b45309', bg: '#fffbeb', border: '#fde68a', active: result.skipped > 0 },
+        { count: result.flagged.length, label: 'Flagged for review',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca', active: result.flagged.length > 0 },
       ].map(({ count, label, color, bg, border, active }) => (
         <div key={label} style={{ padding: '16px', borderRadius: '10px', backgroundColor: active ? bg : '#f8fafc', border: `1px solid ${active ? border : '#e2e8f0'}` }}>
           <div style={{ fontSize: '26px', fontWeight: 700, color: active ? color : '#94a3b8' }}>{count}</div>
@@ -554,6 +776,7 @@ function ProgressBar({ progress, label }: { progress: number; label: string }) {
 // ── Locations tab ──────────────────────────────────────────────────────────────
 function LocationsTab({ orgId }: { orgId: string }) {
   const [step,     setStep]     = useState<MtStep>('idle')
+  const [mode,     setMode]     = useState<ImportMode>('fill')
   const [fileName, setFileName] = useState('')
   const [headers,  setHeaders]  = useState<string[]>([])
   const [rows,     setRows]     = useState<string[][]>([])
@@ -574,7 +797,7 @@ function LocationsTab({ orgId }: { orgId: string }) {
   const handleImport = async () => {
     setStep('importing'); setProgress(0); setError(null)
     try {
-      const res = await importLocations(orgId, headers, rows, setProgress)
+      const res = await importLocations(orgId, headers, rows, mode, setProgress)
       setResult(res); setStep('done')
     } catch (e) { setError(e instanceof Error ? e.message : 'Import failed'); setStep('previewing') }
   }
@@ -583,6 +806,7 @@ function LocationsTab({ orgId }: { orgId: string }) {
 
   if (step === 'idle') return (
     <>
+      <ModeSelector mode={mode} setMode={setMode} name="loc-mode" />
       {error && <div style={{ marginBottom: '16px', padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', fontSize: '13px', color: '#b91c1c' }}>{error}</div>}
       <DropZone onFile={handleFile} dragOver={dragOver} setDragOver={setDragOver} />
     </>
@@ -621,6 +845,7 @@ function LocationsTab({ orgId }: { orgId: string }) {
 // ── Providers tab ──────────────────────────────────────────────────────────────
 function ProvidersTab({ orgId }: { orgId: string }) {
   const [step,     setStep]     = useState<MtStep>('idle')
+  const [mode,     setMode]     = useState<ImportMode>('fill')
   const [fileName, setFileName] = useState('')
   const [headers,  setHeaders]  = useState<string[]>([])
   const [rows,     setRows]     = useState<string[][]>([])
@@ -641,7 +866,7 @@ function ProvidersTab({ orgId }: { orgId: string }) {
   const handleImport = async () => {
     setStep('importing'); setProgress(0); setError(null)
     try {
-      const res = await importProviders(orgId, headers, rows, setProgress)
+      const res = await importProviders(orgId, headers, rows, mode, setProgress)
       setResult(res); setStep('done')
     } catch (e) { setError(e instanceof Error ? e.message : 'Import failed'); setStep('previewing') }
   }
@@ -653,6 +878,7 @@ function ProvidersTab({ orgId }: { orgId: string }) {
       <div style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '12px', color: '#92400e' }}>
         Import locations first so providers can be linked to their practice sites.
       </div>
+      <ModeSelector mode={mode} setMode={setMode} name="prov-mode" />
       {error && <div style={{ marginBottom: '16px', padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', fontSize: '13px', color: '#b91c1c' }}>{error}</div>}
       <DropZone onFile={handleFile} dragOver={dragOver} setDragOver={setDragOver} />
     </>
@@ -689,7 +915,7 @@ function ProvidersTab({ orgId }: { orgId: string }) {
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
-export default function MtImportPage() {
+export default function DataImportPage() {
   const orgId = useOrganizationId()
   const [activeTab, setActiveTab] = useState<'locations' | 'providers'>('locations')
 
@@ -705,8 +931,8 @@ export default function MtImportPage() {
     <main className="page-xl">
       <div className="page-header" style={{ marginBottom: '24px' }}>
         <div>
-          <h1 className="page-title">MedTrainer Import</h1>
-          <p className="page-subtitle">Import locations and providers from a MedTrainer Excel export</p>
+          <h1 className="page-title">Data Import</h1>
+          <p className="page-subtitle">Import provider and location data from an Excel export</p>
         </div>
       </div>
 

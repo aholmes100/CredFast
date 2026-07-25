@@ -11,6 +11,7 @@ interface Props {
 export default function GroupEditor({ group }: Props) {
   const [form, setForm] = useState({
     name:                           group.name,
+    division_code:                  group.division_code ?? '',
     legal_name:                     group.legal_name ?? '',
     tax_id:                         group.tax_id ?? '',
     group_npi:                      group.group_npi ?? '',
@@ -60,6 +61,7 @@ export default function GroupEditor({ group }: Props) {
 
     const { error: saveError } = await supabase.from('groups').update({
       name:                           form.name,
+      division_code:                  toNull(form.division_code),
       legal_name:                     toNull(form.legal_name),
       tax_id:                         toNull(form.tax_id),
       group_npi:                      toNull(form.group_npi),
@@ -106,6 +108,12 @@ export default function GroupEditor({ group }: Props) {
           <label className="form-label">Group Name</label>
           <input className="form-input" value={form.name}
             onChange={(e) => set('name', e.target.value)} placeholder="Acme Medical Group" />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Division Code</label>
+          <input className="form-input" value={form.division_code}
+            onChange={(e) => set('division_code', e.target.value)} placeholder="e.g. RVMD" />
+          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>Short abbreviation used to identify this group (e.g. RVMD, CLNC). Used for data imports.</p>
         </div>
         <div className="form-field">
           <label className="form-label">Legal Name</label>
