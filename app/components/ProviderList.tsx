@@ -6,35 +6,54 @@ import Link from 'next/link'
 import type { Provider } from '../types'
 import DeleteRowButton from './DeleteRowButton'
 
-function expirationColor(d: string | null | undefined) {
-  if (!d) return '#94a3b8'
-  const days = Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
-  if (days < 0)  return '#dc2626'
-  if (days < 90) return '#d97706'
-  return '#16a34a'
-}
+export type LicRow = { provider_id: string; expiration_date: string | null; is_primary: boolean }
+export type IdRow  = { provider_id: string; identifier_type: string; effective_date: string | null }
 
-function fmtDate(d: string | null | undefined) {
-  if (!d) return null
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+function credStatus(
+  licRows: LicRow[],
+  idRows: IdRow[]
+): 'expired' | 'expiring' | 'active' | 'none' {
+  if (licRows.length === 0 && idRows.length === 0) return 'none'
 
-function credStatus(p: Provider): 'expired' | 'expiring' | 'ok' {
-  const dates = [p.license_expiration, p.malpractice_expiration, p.board_expiration].filter(Boolean) as string[]
+  const dates = [
+    ...licRows.map(l => l.expiration_date),
+    ...idRows.filter(i => i.identifier_type === 'dea').map(i => i.effective_date),
+  ].filter(Boolean) as string[]
+
+  let worst: 'active' | 'expiring' = 'active'
   for (const d of dates) {
     const days = Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
     if (days < 0)  return 'expired'
+    if (days < 90) worst = 'expiring'
   }
-  for (const d of dates) {
-    const days = Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
-    if (days < 90) return 'expiring'
-  }
-  return 'ok'
+  return worst
 }
 
-interface Props { providers: Provider[] }
+function CredBadge({ status }: { status: 'expired' | 'expiring' | 'active' | 'none' }) {
+  const config = {
+    expired:  { label: 'Expired',         color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+    expiring: { label: 'Expiring Soon',   color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+    active:   { label: 'Active',          color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+    none:     { label: 'No credentials',  color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  }[status]
+  return (
+    <span style={{
+      fontSize: '11px', fontWeight: 600, color: config.color,
+      backgroundColor: config.bg, border: `1px solid ${config.border}`,
+      borderRadius: '5px', padding: '2px 8px', whiteSpace: 'nowrap',
+    }}>
+      {config.label}
+    </span>
+  )
+}
 
-export default function ProviderList({ providers }: Props) {
+interface Props {
+  providers: Provider[]
+  initialLicenses: LicRow[]
+  initialIdentifiers: IdRow[]
+}
+
+export default function ProviderList({ providers, initialLicenses, initialIdentifiers }: Props) {
   const searchParams = useSearchParams()
   const [search,    setSearch]    = useState('')
   const [specialty, setSpecialty] = useState('')
@@ -45,6 +64,32 @@ export default function ProviderList({ providers }: Props) {
     Array.from(new Set(providers.map(p => p.specialty).filter(Boolean) as string[])).sort(),
     [providers]
   )
+
+  const licensesByProv = useMemo(() => {
+    const m = new Map<string, LicRow[]>()
+    for (const l of initialLicenses) {
+      if (!m.has(l.provider_id)) m.set(l.provider_id, [])
+      m.get(l.provider_id)!.push(l)
+    }
+    return m
+  }, [initialLicenses])
+
+  const identsByProv = useMemo(() => {
+    const m = new Map<string, IdRow[]>()
+    for (const i of initialIdentifiers) {
+      if (!m.has(i.provider_id)) m.set(i.provider_id, [])
+      m.get(i.provider_id)!.push(i)
+    }
+    return m
+  }, [initialIdentifiers])
+
+  const statusMap = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof credStatus>>()
+    for (const p of providers) {
+      m.set(p.id, credStatus(licensesByProv.get(p.id) ?? [], identsByProv.get(p.id) ?? []))
+    }
+    return m
+  }, [providers, licensesByProv, identsByProv])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -58,12 +103,12 @@ export default function ProviderList({ providers }: Props) {
       if (panel === 'open'   && p.accepting_new_patients !== true)  return false
       if (panel === 'closed' && p.accepting_new_patients !== false) return false
       if (creds) {
-        const s = credStatus(p)
+        const s = statusMap.get(p.id) ?? 'none'
         if (creds !== s) return false
       }
       return true
     })
-  }, [providers, search, specialty, panel, creds])
+  }, [providers, search, specialty, panel, creds, statusMap])
 
   const hasFilters = search || specialty || panel || creds
   const clear = () => { setSearch(''); setSpecialty(''); setPanel(''); setCreds('') }
@@ -117,77 +162,48 @@ export default function ProviderList({ providers }: Props) {
       {filtered.length > 0 ? (
         <div className="card-lg" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 140px 120px 140px 120px 32px',
+            display: 'grid', gridTemplateColumns: '1fr 180px 140px 32px',
             padding: '10px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc',
           }}>
-            {['Provider', 'NPI · Specialty', 'License', 'Malpractice', 'CAQH · DEA', ''].map(h => (
+            {['Provider', 'NPI · Specialty', 'Credential Status', ''].map(h => (
               <span key={h} style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>{h}</span>
             ))}
           </div>
 
-          {filtered.map((p, idx) => {
-            const licColor = expirationColor(p.license_expiration)
-            const malColor = expirationColor(p.malpractice_expiration)
-            return (
-              <div key={p.id} className="table-row-hover" style={{
-                display: 'grid', gridTemplateColumns: '1fr 140px 120px 140px 120px 32px',
-                padding: '12px 16px',
-                borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none',
-                alignItems: 'center',
-              }}>
-                <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
-                    {p.last_name}, {p.first_name}
-                    {p.credential_suffix && <span style={{ fontWeight: 400, color: '#64748b' }}> {p.credential_suffix}</span>}
-                  </div>
-                  {p.email && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>{p.email}</div>}
-                  {p.accepting_new_patients === false && (
-                    <span style={{ fontSize: '10px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '1px 5px', borderRadius: '3px', marginTop: '2px', display: 'inline-block' }}>
-                      Closed panel
-                    </span>
-                  )}
-                </Link>
-
-                <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ fontSize: '12px', color: '#334155', fontWeight: 500 }}>{p.npi || '—'}</div>
-                  {p.specialty && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{p.specialty}</div>}
-                </Link>
-
-                <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ fontSize: '12px', color: '#334155', fontWeight: 500 }}>
-                    {p.license_number || '—'}
-                    {p.license_state && <span style={{ color: '#94a3b8', fontWeight: 400 }}> {p.license_state}</span>}
-                  </div>
-                  {p.license_expiration && (
-                    <div style={{ fontSize: '11px', color: licColor, marginTop: '1px', fontWeight: licColor !== '#16a34a' ? 600 : 400 }}>
-                      exp {fmtDate(p.license_expiration)}
-                    </div>
-                  )}
-                </Link>
-
-                <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ fontSize: '11px', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.malpractice_carrier || '—'}
-                  </div>
-                  {p.malpractice_expiration && (
-                    <div style={{ fontSize: '11px', color: malColor, marginTop: '1px', fontWeight: malColor !== '#16a34a' ? 600 : 400 }}>
-                      exp {fmtDate(p.malpractice_expiration)}
-                    </div>
-                  )}
-                </Link>
-
-                <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none' }}>
-                  {p.caqh_number && <div style={{ fontSize: '11px', color: '#475569' }}>CAQH {p.caqh_number}</div>}
-                  {p.dea_number  && <div style={{ fontSize: '11px', color: '#475569', marginTop: '1px' }}>DEA {p.dea_number}</div>}
-                  {!p.caqh_number && !p.dea_number && <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>}
-                </Link>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <DeleteRowButton table="providers" id={p.id} label="provider" />
+          {filtered.map((p, idx) => (
+            <div key={p.id} className="table-row-hover" style={{
+              display: 'grid', gridTemplateColumns: '1fr 180px 140px 32px',
+              padding: '12px 16px',
+              borderBottom: idx < filtered.length - 1 ? '1px solid #f1f5f9' : 'none',
+              alignItems: 'center',
+            }}>
+              <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+                  {p.last_name}, {p.first_name}
+                  {p.credential_suffix && <span style={{ fontWeight: 400, color: '#64748b' }}> {p.credential_suffix}</span>}
                 </div>
+                {p.email && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>{p.email}</div>}
+                {p.accepting_new_patients === false && (
+                  <span style={{ fontSize: '10px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '1px 5px', borderRadius: '3px', marginTop: '2px', display: 'inline-block' }}>
+                    Closed panel
+                  </span>
+                )}
+              </Link>
+
+              <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none' }}>
+                <div style={{ fontSize: '12px', color: '#334155', fontWeight: 500 }}>{p.npi || '—'}</div>
+                {p.specialty && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{p.specialty}</div>}
+              </Link>
+
+              <Link href={`/providers/${p.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                <CredBadge status={statusMap.get(p.id) ?? 'none'} />
+              </Link>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <DeleteRowButton table="providers" id={p.id} label="provider" />
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
       ) : (
         <div className="empty-state">

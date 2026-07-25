@@ -1,15 +1,30 @@
 import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { Provider } from '../types'
-import ProviderList from '../components/ProviderList'
+import ProviderList, { type LicRow, type IdRow } from '../components/ProviderList'
 import EmptyState from '../components/EmptyState'
 
 export default async function ProvidersPage() {
   const supabase = await createClient()
-  const { data: providers, error } = await supabase
-    .from('providers')
-    .select('*')
-    .order('last_name')
+
+  const { data: profileData } = await supabase.from('profiles').select('organization_id').single()
+  const orgId = (profileData as { organization_id: string } | null)?.organization_id ?? ''
+
+  const [
+    { data: providers, error },
+    { data: licenseRows },
+    { data: identifierRows },
+  ] = await Promise.all([
+    supabase.from('providers').select('*').order('last_name'),
+    supabase
+      .from('provider_licenses')
+      .select('provider_id, expiration_date, is_primary')
+      .eq('organization_id', orgId),
+    supabase
+      .from('provider_identifiers')
+      .select('provider_id, identifier_type, effective_date')
+      .eq('organization_id', orgId),
+  ])
 
   if (error) {
     return (
@@ -32,7 +47,11 @@ export default async function ProvidersPage() {
       </div>
 
       {list.length > 0 ? (
-        <ProviderList providers={list} />
+        <ProviderList
+          providers={list}
+          initialLicenses={(licenseRows ?? []) as LicRow[]}
+          initialIdentifiers={(identifierRows ?? []) as IdRow[]}
+        />
       ) : (
         <EmptyState
           icon="👤"
