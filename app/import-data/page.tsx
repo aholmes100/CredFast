@@ -18,6 +18,7 @@ type ExistingLoc = {
   facility_type: string | null; address_1: string | null; state: string | null
   zip: string | null; county: string | null; mailing_address_1: string | null
   phone: string | null; fax: string | null; notes: string | null
+  group_medicaid_number: string | null; group_medicare_number: string | null
 }
 
 type ExistingProvider = {
@@ -116,7 +117,7 @@ async function importLocations(
   const [{ data: groupsData }, { data: locData }] = await Promise.all([
     supabase.from('groups').select('id, name, division_code').eq('organization_id', orgId),
     supabase.from('locations')
-      .select('id, group_id, name, facility_type, address_1, state, zip, county, mailing_address_1, phone, fax, notes')
+      .select('id, group_id, name, facility_type, address_1, state, zip, county, mailing_address_1, phone, fax, notes, group_medicaid_number, group_medicare_number')
       .eq('organization_id', orgId),
   ])
 
@@ -152,6 +153,26 @@ async function importLocations(
     const dupKey = `${group.id}:${locName.toLowerCase()}`
     const existing = existingLocMap.get(dupKey)
 
+    // Parse Group Medicare / Medicaid — used by both the update and insert paths below
+    const grpMedRaw       = cv(row, C.grpMedicaid)
+    const grpMcareRaw     = cv(row, C.grpMedicare)
+    const grpMedEntries   = parseMultiValue(grpMedRaw)
+    const grpMcareEntries = parseMultiValue(grpMcareRaw)
+    const grpMedValue   = grpMedEntries.length > 0
+      ? ((grpMedEntries[0].length >= 2 ? grpMedEntries[0][1] : grpMedEntries[0][0]) || null)
+      : null
+    const grpMcareValue = grpMcareEntries.length > 0
+      ? ((grpMcareEntries[0].length >= 2 ? grpMcareEntries[0][1] : grpMcareEntries[0][0]) || null)
+      : null
+    if (grpMedEntries.length > 1) {
+      flagged.push({ rowIndex: i, label: locName,
+        reason: 'Multiple Medicaid IDs found — only primary value imported, review remaining entries' })
+    }
+    if (grpMcareEntries.length > 1) {
+      flagged.push({ rowIndex: i, label: locName,
+        reason: 'Multiple Medicare IDs found — only primary value imported, review remaining entries' })
+    }
+
     if (existing) {
       const emailVal = cv(row, C.email)
       const candidate: Record<string, string | null> = {
@@ -164,6 +185,8 @@ async function importLocations(
         phone:             cv(row, C.phone) || null,
         fax:               cv(row, C.fax) || null,
         notes:             emailVal ? `Email: ${emailVal}` : null,
+        group_medicaid_number: grpMedValue,
+        group_medicare_number: grpMcareValue,
       }
       const upd: Record<string, string | null> = {}
       for (const [k, v] of Object.entries(candidate)) {
@@ -178,29 +201,22 @@ async function importLocations(
     }
 
     // New location
-    const grpMed = cv(row, C.grpMedicaid)
-    const grpMcare = cv(row, C.grpMedicare)
-    if (grpMed || grpMcare) {
-      flagged.push({
-        rowIndex: i, label: locName,
-        reason: `Group Medicaid/Medicare identifiers (${[grpMed, grpMcare].filter(Boolean).join(' / ')}) — multi-state identifier import not yet supported`,
-      })
-    }
-
     const emailVal = cv(row, C.email)
     const insertPayload = {
-      organization_id:    orgId,
-      group_id:           group.id,
-      name:               locName,
-      facility_type:      cv(row, C.type) || null,
-      address_1:          cv(row, C.address) || null,
-      state:              cv(row, C.state) || null,
-      zip:                cv(row, C.zip) || null,
-      county:             cv(row, C.county) || null,
-      mailing_address_1:  cv(row, C.mailing) || null,
-      phone:              cv(row, C.phone) || null,
-      fax:                cv(row, C.fax) || null,
-      notes:              emailVal ? `Email: ${emailVal}` : null,
+      organization_id:       orgId,
+      group_id:              group.id,
+      name:                  locName,
+      facility_type:         cv(row, C.type) || null,
+      address_1:             cv(row, C.address) || null,
+      state:                 cv(row, C.state) || null,
+      zip:                   cv(row, C.zip) || null,
+      county:                cv(row, C.county) || null,
+      mailing_address_1:     cv(row, C.mailing) || null,
+      phone:                 cv(row, C.phone) || null,
+      fax:                   cv(row, C.fax) || null,
+      notes:                 emailVal ? `Email: ${emailVal}` : null,
+      group_medicaid_number: grpMedValue,
+      group_medicare_number: grpMcareValue,
     }
     const { data: newLoc, error: locErr } = await supabase.from('locations').insert(insertPayload).select('id').single()
 
@@ -215,6 +231,8 @@ async function importLocations(
       state: insertPayload.state, zip: insertPayload.zip, county: insertPayload.county,
       mailing_address_1: insertPayload.mailing_address_1, phone: insertPayload.phone,
       fax: insertPayload.fax, notes: insertPayload.notes,
+      group_medicaid_number: insertPayload.group_medicaid_number,
+      group_medicare_number: insertPayload.group_medicare_number,
     })
 
     // Update group with non-empty values only
