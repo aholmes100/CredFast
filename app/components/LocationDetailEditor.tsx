@@ -33,9 +33,12 @@ export default function LocationDetailEditor({ location }: Props) {
   const [groups, setGroups] = useState<Pick<Group, 'id' | 'name'>[]>([])
 
   const [form, setForm] = useState({
-    name:               location.name,
-    group_npi_override: location.group_npi_override ?? '',
-    group_id:           location.group_id ?? '',
+    name:                 location.name,
+    group_npi:            location.group_npi ?? '',
+    group_medicare_number: location.group_medicare_number ?? '',
+    group_medicaid_number: location.group_medicaid_number ?? '',
+    location_npi:         location.location_npi ?? '',
+    group_id:             location.group_id ?? '',
     address_1:          location.address_1 ?? '',
     address_2:          location.address_2 ?? '',
     city:               location.city ?? '',
@@ -120,9 +123,12 @@ export default function LocationDetailEditor({ location }: Props) {
     const toNull = (v: string) => v.trim() || null
 
     const { error: saveError } = await supabase.from('locations').update({
-      name:               form.name,
-      group_npi_override: toNull(form.group_npi_override),
-      group_id:           toNull(form.group_id),
+      name:                  form.name,
+      group_npi:             toNull(form.group_npi),
+      group_medicare_number: toNull(form.group_medicare_number),
+      group_medicaid_number: toNull(form.group_medicaid_number),
+      location_npi:          toNull(form.location_npi),
+      group_id:              toNull(form.group_id),
       address_1:          toNull(form.address_1),
       address_2:          toNull(form.address_2),
       city:               toNull(form.city),
@@ -200,13 +206,46 @@ export default function LocationDetailEditor({ location }: Props) {
             </select>
           </div>
         </div>
-        <div className="form-field" style={{ marginBottom: 0 }}>
-          <label className="form-label">Group NPI Override</label>
-          <input className="form-input" value={form.group_npi_override}
-            onChange={e => set('group_npi_override', e.target.value)} placeholder="1234567890" />
-          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
-            Overrides the group&apos;s default NPI for this location only. Leave blank to use the group NPI.
-          </p>
+      </div>
+
+      {/* ── Location Identifiers ──────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Location Identifiers</p>
+        <div className="form-row form-row-2" style={{ marginBottom: '10px' }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Location NPI</label>
+            <input className="form-input" value={form.location_npi}
+              onChange={e => set('location_npi', e.target.value)} placeholder="1234567890" />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+              This location&apos;s own NPI, if it differs from the group NPI (e.g. required by Highmark).
+            </p>
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Group NPI</label>
+            <input className="form-input" value={form.group_npi}
+              onChange={e => set('group_npi', e.target.value)} placeholder="1234567890" />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+              Overrides the group&apos;s NPI for this location. Leave blank to use the group-level value.
+            </p>
+          </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Group Medicare Number</label>
+            <input className="form-input" value={form.group_medicare_number}
+              onChange={e => set('group_medicare_number', e.target.value)} placeholder="PTAN" />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+              Overrides the group&apos;s Medicare PTAN for this location.
+            </p>
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Group Medicaid Number</label>
+            <input className="form-input" value={form.group_medicaid_number}
+              onChange={e => set('group_medicaid_number', e.target.value)} placeholder="Medicaid group #" />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+              Overrides the group&apos;s Medicaid number for this location.
+            </p>
+          </div>
         </div>
       </div>
 

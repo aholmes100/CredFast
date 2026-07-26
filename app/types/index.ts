@@ -109,7 +109,10 @@ export interface Location {
   handicap_accessible: boolean | null
   accepts_medicaid: boolean | null
   accepts_medicare: boolean | null
-  group_npi_override: string | null
+  group_npi: string | null
+  group_medicare_number: string | null
+  group_medicaid_number: string | null
+  location_npi: string | null
   hours_mon_fri: string | null
   hours_weekend: string | null
   hours_monday:    string | null
