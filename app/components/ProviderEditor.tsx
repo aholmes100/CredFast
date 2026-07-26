@@ -51,6 +51,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
     last_name:                provider.last_name,
     middle_name:              provider.middle_name ?? '',
     credential_suffix:        provider.credential_suffix ?? '',
+    degree:                   provider.degree ?? '',
     npi:                      provider.npi ?? '',
     email:                    provider.email ?? '',
     phone:                    provider.phone ?? '',
@@ -120,6 +121,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       last_name:                form.last_name,
       middle_name:              toNull(form.middle_name),
       credential_suffix:        toNull(form.credential_suffix),
+      degree:                   toNull(form.degree),
       npi:                      toNull(form.npi),
       email:                    toNull(form.email),
       phone:                    toNull(form.phone),
@@ -429,6 +431,17 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             <input className="form-input" value={form.credential_suffix}
               onChange={(e) => set('credential_suffix', e.target.value)} placeholder="MD, DO, NP, PA…" />
           </div>
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Degree</label>
+            <input className="form-input" value={form.degree}
+              onChange={(e) => set('degree', e.target.value)} placeholder="MD, DO, MSN, MSW, MMS…" />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+              Academic degree (separate from credential suffix used in name display)
+            </p>
+          </div>
+          <div />
         </div>
         <div className="form-row form-row-2">
           <div className="form-field">

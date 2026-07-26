@@ -63,6 +63,11 @@ export default function LocationDetailEditor({ location }: Props) {
     mailing_city:       location.mailing_city ?? '',
     mailing_state:      location.mailing_state ?? '',
     mailing_zip:        location.mailing_zip ?? '',
+    website:          location.website ?? '',
+    laboratory:       location.laboratory ?? '',
+    panel_limits:     location.panel_limits ?? '',
+    age_limits:       location.age_limits ?? '',
+    office_languages: location.office_languages ?? '',
     // Booleans
     accepts_new_patients: location.accepts_new_patients ?? true,
     handicap_accessible:  location.handicap_accessible ?? false,
@@ -152,6 +157,11 @@ export default function LocationDetailEditor({ location }: Props) {
       mailing_city:       toNull(form.mailing_city),
       mailing_state:      toNull(form.mailing_state),
       mailing_zip:        toNull(form.mailing_zip),
+      website:              toNull(form.website),
+      laboratory:           toNull(form.laboratory),
+      panel_limits:         toNull(form.panel_limits),
+      age_limits:           toNull(form.age_limits),
+      office_languages:     toNull(form.office_languages),
       accepts_new_patients: form.accepts_new_patients,
       handicap_accessible:  form.handicap_accessible,
       accepts_medicaid:     form.accepts_medicaid,
@@ -246,6 +256,43 @@ export default function LocationDetailEditor({ location }: Props) {
               Overrides the group&apos;s Medicaid number for this location.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* ── Additional Details ───────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Additional Details</p>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Office Website</label>
+            <input className="form-input" value={form.website}
+              onChange={e => set('website', e.target.value)} placeholder="https://example.com" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Laboratory Utilized</label>
+            <input className="form-input" value={form.laboratory}
+              onChange={e => set('laboratory', e.target.value)} placeholder="e.g. Quest, LabCorp" />
+          </div>
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Panel Limits</label>
+            <input className="form-input" value={form.panel_limits}
+              onChange={e => set('panel_limits', e.target.value)} placeholder="e.g. 500 patients" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Age Limits</label>
+            <input className="form-input" value={form.age_limits}
+              onChange={e => set('age_limits', e.target.value)} placeholder="e.g. 18+ years" />
+          </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Office Languages</label>
+            <input className="form-input" value={form.office_languages}
+              onChange={e => set('office_languages', e.target.value)} placeholder="e.g. English, Spanish" />
+          </div>
+          <div />
         </div>
       </div>
 

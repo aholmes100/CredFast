@@ -14,6 +14,7 @@ interface ProviderRow {
   last_name: string
   middle_name: string | null
   credential_suffix: string | null
+  degree: string | null
   npi: string | null
   caqh_number: string | null
   dea_number: string | null
@@ -44,6 +45,8 @@ interface GroupRow {
   billing_state: string | null
   billing_zip: string | null
   billing_phone: string | null
+  medicare_group_number: string | null
+  medicaid_group_number: string | null
 }
 
 interface LocationRow {
@@ -54,6 +57,9 @@ interface LocationRow {
   zip: string | null
   phone: string | null
   fax: string | null
+  group_npi:             string | null
+  group_medicare_number: string | null
+  group_medicaid_number: string | null
   hours_monday:    string | null
   hours_tuesday:   string | null
   hours_wednesday: string | null
@@ -134,6 +140,7 @@ function buildProviderRow(
     middle_name:                 formatField('middle_name',                 provider.middle_name),
     last_name:                   formatField('last_name',                   provider.last_name),
     credential_suffix:           formatField('credential_suffix',           provider.credential_suffix),
+    degree:                      formatField('degree',                      provider.degree),
     npi:                         formatField('npi',                         provider.npi),
     caqh_number:                 formatField('caqh_number',                 provider.caqh_number),
     dea_number:                  formatField('dea_number',                  provider.dea_number),
@@ -159,7 +166,9 @@ function buildProviderRow(
     billing_zip:                 formatField('billing_zip',                 group?.billing_zip),
     billing_phone:               formatField('billing_phone',               group?.billing_phone),
     group_name:                  formatField('group_name',                  group?.name),
-    group_npi:                   formatField('group_npi',                   assignment?.group_npi_override || group?.group_npi),
+    group_npi:                   formatField('group_npi',                   assignment?.group_npi_override || location?.group_npi || group?.group_npi),
+    group_medicare_number:       formatField('group_medicare_number',       location?.group_medicare_number || group?.medicare_group_number),
+    group_medicaid_number:       formatField('group_medicaid_number',       location?.group_medicaid_number || group?.medicaid_group_number),
     accepting_new_patients:      formatField('accepting_new_patients',      provider.accepting_new_patients),
     date_of_birth:               formatField('date_of_birth',               provider.date_of_birth),
     medicaid_number:             formatField('medicaid_number',             provider.medicaid_number),
@@ -366,7 +375,7 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
         supabase
           .from('providers')
           .select(
-            'id, first_name, last_name, middle_name, credential_suffix, npi, ' +
+            'id, first_name, last_name, middle_name, credential_suffix, degree, npi, ' +
             'caqh_number, dea_number, ssn, email, specialty, taxonomy_code, gender, ' +
             'license_number, license_state, accepting_new_patients, date_of_birth, ' +
             'medicaid_number, medicaid_state, medicare_number, ' +
@@ -377,8 +386,8 @@ export default function GenerateRosterPage({ params }: { params: Promise<{ id: s
           .from('provider_group_locations')
           .select(
             'provider_id, location_id, group_npi_override, ' +
-            'groups(name, group_npi, tax_id, billing_address_1, billing_address_2, billing_city, billing_state, billing_zip, billing_phone), ' +
-            'locations(address_1, address_2, city, state, zip, phone, fax, hours_monday, hours_tuesday, hours_wednesday, hours_thursday, hours_friday, hours_saturday, hours_sunday)'
+            'groups(name, group_npi, tax_id, billing_address_1, billing_address_2, billing_city, billing_state, billing_zip, billing_phone, medicare_group_number, medicaid_group_number), ' +
+            'locations(address_1, address_2, city, state, zip, phone, fax, group_npi, group_medicare_number, group_medicaid_number, hours_monday, hours_tuesday, hours_wednesday, hours_thursday, hours_friday, hours_saturday, hours_sunday)'
           )
           .in('provider_id', selectedArr),
       ])

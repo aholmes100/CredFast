@@ -60,8 +60,11 @@ const ROSTER_FIELDS: RosterFieldDef[] = [
   { key: 'hours_wednesday', label: 'Wednesday Hours' },
   { key: 'hours_thursday',  label: 'Thursday Hours' },
   { key: 'hours_friday',    label: 'Friday Hours' },
-  { key: 'hours_saturday',  label: 'Saturday Hours' },
-  { key: 'hours_sunday',    label: 'Sunday Hours' },
+  { key: 'hours_saturday',        label: 'Saturday Hours' },
+  { key: 'hours_sunday',          label: 'Sunday Hours' },
+  { key: 'degree',                label: 'Degree' },
+  { key: 'group_medicare_number', label: 'Group Medicare Number' },
+  { key: 'group_medicaid_number', label: 'Group Medicaid Number' },
 ]
 
 // ── Auto-map rules (Humana column headers → CredFast field keys) ───────────────
@@ -185,6 +188,7 @@ export default function RostersPage() {
   const [templateName, setTemplateName] = useState<string>('')
   const [selectedPayerId, setSelectedPayerId] = useState<string>('')
   const [columnMappings, setColumnMappings] = useState<Record<string, string>>({})
+  const [fieldSearches, setFieldSearches]   = useState<Record<string, string>>({})
   const [saving, setSaving]           = useState(false)
   const [saveError, setSaveError]     = useState<string | null>(null)
 
@@ -378,6 +382,7 @@ export default function RostersPage() {
     setTemplateName('')
     setSelectedPayerId('')
     setColumnMappings({})
+    setFieldSearches({})
     setSaveError(null)
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -630,7 +635,7 @@ export default function RostersPage() {
                 {/* Header row */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: '280px 240px',
+                  gridTemplateColumns: '280px 1fr',
                   gap: '12px',
                   padding: '6px 0 8px',
                   borderBottom: '1px solid #e2e8f0',
@@ -645,40 +650,64 @@ export default function RostersPage() {
 
                 {detectedHeaders.map(header => {
                   const isMapped = !!columnMappings[header]
+                  const q = (fieldSearches[header] ?? '').toLowerCase()
+                  const filteredFields = q
+                    ? ROSTER_FIELDS.filter(f =>
+                        f.key === columnMappings[header] ||
+                        f.label.toLowerCase().includes(q) ||
+                        f.key.toLowerCase().includes(q)
+                      )
+                    : ROSTER_FIELDS
                   return (
                     <div
                       key={header}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '280px 240px',
+                        gridTemplateColumns: '280px 1fr',
                         gap: '12px',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         padding: '7px 0',
                         borderBottom: '1px solid #f1f5f9',
                       }}
                     >
-                      <div style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: isMapped ? '#0f172a' : '#64748b',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}>
+                      <div
+                        title={header}
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          color: isMapped ? '#0f172a' : '#64748b',
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                          paddingTop: '6px',
+                        }}
+                      >
                         {header}
                         {isMapped && <span style={{ marginLeft: '6px', fontSize: '10px', color: '#16a34a' }}>✓</span>}
                       </div>
-                      <select
-                        className="form-select"
-                        value={columnMappings[header] ?? ''}
-                        onChange={e => setMapping(header, e.target.value)}
-                        style={{ fontSize: '12px' }}
-                      >
-                        <option value="">— Ignore this column —</option>
-                        {ROSTER_FIELDS.map(f => (
-                          <option key={f.key} value={f.key}>{f.label}</option>
-                        ))}
-                      </select>
+                      <div>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Search fields…"
+                          value={fieldSearches[header] ?? ''}
+                          onChange={e => setFieldSearches(prev => ({ ...prev, [header]: e.target.value }))}
+                          style={{ fontSize: '11px', marginBottom: '4px', padding: '4px 8px', height: 'auto' }}
+                        />
+                        <select
+                          className="form-select"
+                          value={columnMappings[header] ?? ''}
+                          onChange={e => {
+                            setMapping(header, e.target.value)
+                            setFieldSearches(prev => ({ ...prev, [header]: '' }))
+                          }}
+                          style={{ fontSize: '12px' }}
+                        >
+                          <option value="">— Ignore this column —</option>
+                          {filteredFields.map(f => (
+                            <option key={f.key} value={f.key}>{f.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   )
                 })}

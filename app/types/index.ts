@@ -11,6 +11,7 @@ export interface Provider {
   last_name: string
   middle_name: string | null
   credential_suffix: string | null    // MD, DO, NP, PA, etc.
+  degree: string | null               // Academic degree, distinct from credential_suffix
   npi: string | null
   email: string | null
   phone: string | null
@@ -128,6 +129,11 @@ export interface Location {
   mailing_city: string | null
   mailing_state: string | null
   mailing_zip: string | null
+  website: string | null
+  laboratory: string | null
+  panel_limits: string | null
+  age_limits: string | null
+  office_languages: string | null
   is_active: boolean
   notes: string | null
   created_at: string
@@ -527,6 +533,7 @@ export interface ProviderPayerEnrollment {
   effective_date: string | null
   created_at: string
   updated_at: string | null
+  provider_type: string | null
 }
 
 export interface EnrollmentActivityLog {

@@ -51,6 +51,7 @@ export const FIELD_LABELS: Record<string, Record<string, string>> = {
     board_certified:              'Board Certified',
     board_specialty:              'Board Certification Specialty',
     board_expiration:             'Board Certification Expiration',
+    degree:                       'Degree (MD, DO, MSN, MSW, etc.)',
   },
   group: {
     name:                         'Practice Name',
@@ -98,8 +99,24 @@ export const FIELD_LABELS: Record<string, Record<string, string>> = {
     handicap_accessible: 'Handicap Accessible',
     accepts_medicaid:    'Accepts Medicaid',
     accepts_medicare:    'Accepts Medicare',
-    hours_mon_fri:       'Office Hours (Mon-Fri)',
-    hours_weekend:       'Office Hours (Weekend)',
+    hours_mon_fri:         'Office Hours (Mon-Fri)',
+    hours_weekend:         'Office Hours (Weekend)',
+    hours_monday:          'Office Hours (Monday)',
+    hours_tuesday:         'Office Hours (Tuesday)',
+    hours_wednesday:       'Office Hours (Wednesday)',
+    hours_thursday:        'Office Hours (Thursday)',
+    hours_friday:          'Office Hours (Friday)',
+    hours_saturday:        'Office Hours (Saturday)',
+    hours_sunday:          'Office Hours (Sunday)',
+    website:               'Office Website',
+    laboratory:            'Laboratory Utilized',
+    panel_limits:          'Panel Limits',
+    age_limits:            'Age Limits',
+    office_languages:      'Office Languages',
+    group_npi:             'Group NPI (Location)',
+    group_medicare_number: 'Group Medicare Number (Location)',
+    group_medicaid_number: 'Group Medicaid Number (Location)',
+    location_npi:          'Location NPI',
   },
   application: {
     status:           'Application Status',
@@ -107,6 +124,9 @@ export const FIELD_LABELS: Record<string, Record<string, string>> = {
     approved_at:      'Date Approved',
     effective_date:   'Effective Date',
     payer_reference:  'Payer Reference Number',
+  },
+  enrollment: {
+    provider_type:    'Provider Type (PCP, SPEC, Hospitalist, etc.)',
   },
   static: {
     overflow: 'See Attached Letter',
@@ -120,6 +140,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   group: 'Group',
   location: 'Location',
   application: 'Application',
+  enrollment: 'Enrollment',
   static: 'Static',
 }
 
