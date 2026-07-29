@@ -56,6 +56,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
     email:                    provider.email ?? '',
     phone:                    provider.phone ?? '',
     ssn:                      provider.ssn ?? '',
+    ssn_last4:                provider.ssn_last4 ?? '',
     provider_tax_id:          provider.provider_tax_id ?? '',
     date_of_birth:            provider.date_of_birth ?? '',
     gender:                   provider.gender ?? '',
@@ -72,6 +73,9 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
     malpractice_expiration:   provider.malpractice_expiration ?? '',
     malpractice_per_occurrence: provider.malpractice_per_occurrence?.toString() ?? '',
     malpractice_aggregate:    provider.malpractice_aggregate?.toString() ?? '',
+    credentialing_contact_name:  provider.credentialing_contact_name ?? '',
+    credentialing_contact_email: provider.credentialing_contact_email ?? '',
+    credentialing_contact_phone: provider.credentialing_contact_phone ?? '',
     medical_school:           provider.medical_school ?? '',
     graduation_year:          provider.graduation_year?.toString() ?? '',
     residency_program:        provider.residency_program ?? '',
@@ -81,6 +85,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
     board_certified:          provider.board_certified ?? false,
     board_specialty:          provider.board_specialty ?? '',
     board_expiration:         provider.board_expiration ?? '',
+    employment_type:          provider.employment_type ?? '',
+    group_start_date:         provider.group_start_date ?? '',
+    group_end_date:           provider.group_end_date ?? '',
+    home_address_1:           provider.home_address_1 ?? '',
+    home_address_2:           provider.home_address_2 ?? '',
+    home_city:                provider.home_city ?? '',
+    home_state:               provider.home_state ?? '',
+    home_zip:                 provider.home_zip ?? '',
     notes:                    provider.notes ?? '',
   })
 
@@ -126,6 +138,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       email:                    toNull(form.email),
       phone:                    toNull(form.phone),
       ssn:                      toNull(form.ssn),
+      ssn_last4:                toNull(form.ssn_last4),
       provider_tax_id:          toNull(form.provider_tax_id),
       date_of_birth:            toNull(form.date_of_birth),
       gender:                   toNull(form.gender),
@@ -142,6 +155,9 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       malpractice_expiration:   toNull(form.malpractice_expiration),
       malpractice_per_occurrence: toFloat(form.malpractice_per_occurrence),
       malpractice_aggregate:    toFloat(form.malpractice_aggregate),
+      credentialing_contact_name:  toNull(form.credentialing_contact_name),
+      credentialing_contact_email: toNull(form.credentialing_contact_email),
+      credentialing_contact_phone: toNull(form.credentialing_contact_phone),
       medical_school:           toNull(form.medical_school),
       graduation_year:          toInt(form.graduation_year),
       residency_program:        toNull(form.residency_program),
@@ -151,6 +167,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       board_certified:          form.board_certified,
       board_specialty:          toNull(form.board_specialty),
       board_expiration:         toNull(form.board_expiration),
+      employment_type:          toNull(form.employment_type),
+      group_start_date:         toNull(form.group_start_date),
+      group_end_date:           toNull(form.group_end_date),
+      home_address_1:           toNull(form.home_address_1),
+      home_address_2:           toNull(form.home_address_2),
+      home_city:                toNull(form.home_city),
+      home_state:               toNull(form.home_state),
+      home_zip:                 toNull(form.home_zip),
       notes:                    toNull(form.notes),
       updated_at:               new Date().toISOString(),
     }).eq('id', provider.id)
@@ -472,13 +496,39 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
               onChange={(e) => set('phone', e.target.value)} placeholder="(555) 000-0000" />
           </div>
         </div>
-        <div className="form-field" style={{ marginBottom: 0 }}>
+        <div className="form-field">
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.accepting_new_patients}
               onChange={(e) => set('accepting_new_patients', e.target.checked)}
               style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
             <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Accepting New Patients</span>
           </label>
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Employment Type</label>
+            <select className="form-select" value={form.employment_type}
+              onChange={(e) => set('employment_type', e.target.value)}>
+              <option value="">Select</option>
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+              <option value="Independent Contractor">Independent Contractor</option>
+              <option value="Locum Tenens">Locum Tenens</option>
+            </select>
+          </div>
+          <div />
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Start Date with Group</label>
+            <input className="form-input" type="date" value={form.group_start_date}
+              onChange={(e) => set('group_start_date', e.target.value)} />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">End Date with Group</label>
+            <input className="form-input" type="date" value={form.group_end_date}
+              onChange={(e) => set('group_end_date', e.target.value)} />
+          </div>
         </div>
       </div>
 
@@ -499,6 +549,17 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             <input className="form-input" value={form.provider_tax_id}
               onChange={(e) => set('provider_tax_id', e.target.value)} placeholder="Individual EIN or SSN for billing" />
           </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">SSN (Last 4 only)</label>
+            <input className="form-input" value={form.ssn_last4}
+              onChange={(e) => set('ssn_last4', e.target.value)} placeholder="XXXX" maxLength={4} />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', marginBottom: 0 }}>
+              Use if full SSN is not available
+            </p>
+          </div>
+          <div />
         </div>
       </div>
 
@@ -663,6 +724,69 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             <label className="form-label">Aggregate ($)</label>
             <input className="form-input" type="number" value={form.malpractice_aggregate}
               onChange={(e) => set('malpractice_aggregate', e.target.value)} placeholder="e.g. 3000000" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Credentialing Contact ────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Credentialing Contact</p>
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', marginTop: '-4px' }}>
+          The person at this practice responsible for credentialing correspondence
+        </p>
+        <div className="form-row form-row-2">
+          <div className="form-field">
+            <label className="form-label">Contact Name</label>
+            <input className="form-input" value={form.credentialing_contact_name}
+              onChange={(e) => set('credentialing_contact_name', e.target.value)} placeholder="Full name" />
+          </div>
+          <div className="form-field">
+            <label className="form-label">Contact Phone</label>
+            <input className="form-input" type="tel" value={form.credentialing_contact_phone}
+              onChange={(e) => set('credentialing_contact_phone', e.target.value)} placeholder="(555) 000-0000" />
+          </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Contact Email</label>
+            <input className="form-input" type="email" value={form.credentialing_contact_email}
+              onChange={(e) => set('credentialing_contact_email', e.target.value)} placeholder="cred@practice.com" />
+          </div>
+          <div />
+        </div>
+      </div>
+
+      {/* ── Home Address ──────────────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Home Address</p>
+        <div className="form-field">
+          <label className="form-label">Address Line 1</label>
+          <input className="form-input" value={form.home_address_1}
+            onChange={(e) => set('home_address_1', e.target.value)} placeholder="123 Main St" />
+        </div>
+        <div className="form-field">
+          <label className="form-label">Address Line 2</label>
+          <input className="form-input" value={form.home_address_2}
+            onChange={(e) => set('home_address_2', e.target.value)} placeholder="Apt, unit, etc." />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px', gap: '10px', marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">City</label>
+            <input className="form-input" value={form.home_city}
+              onChange={(e) => set('home_city', e.target.value)} placeholder="City" />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">State</label>
+            <select className="form-select" value={form.home_state}
+              onChange={(e) => set('home_state', e.target.value)}>
+              <option value="">—</option>
+              {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">ZIP</label>
+            <input className="form-input" value={form.home_zip}
+              onChange={(e) => set('home_zip', e.target.value)} placeholder="78701" />
           </div>
         </div>
       </div>

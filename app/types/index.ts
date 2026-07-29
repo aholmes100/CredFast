@@ -16,6 +16,7 @@ export interface Provider {
   email: string | null
   phone: string | null
   ssn: string | null                  // full SSN
+  ssn_last4: string | null            // last 4 only, when full SSN is not available
   provider_tax_id: string | null      // individual tax ID (distinct from group EIN)
   // Identity
   date_of_birth: string | null        // ISO date string
@@ -36,6 +37,10 @@ export interface Provider {
   caqh_number: string | null
   medicaid_number: string | null
   medicare_number: string | null      // PTAN
+  // Credentialing contact
+  credentialing_contact_name: string | null
+  credentialing_contact_email: string | null
+  credentialing_contact_phone: string | null
   // Malpractice
   malpractice_carrier: string | null
   malpractice_policy: string | null
@@ -53,6 +58,16 @@ export interface Provider {
   board_certified: boolean | null
   board_specialty: string | null
   board_expiration: string | null
+  // Employment
+  employment_type: string | null
+  group_start_date: string | null
+  group_end_date: string | null
+  // Home address
+  home_address_1: string | null
+  home_address_2: string | null
+  home_city: string | null
+  home_state: string | null
+  home_zip: string | null
   // Misc
   notes: string | null
   created_at: string
