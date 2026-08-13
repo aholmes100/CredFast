@@ -6,8 +6,9 @@ import Link from 'next/link'
 import type { Provider } from '../types'
 import DeleteRowButton from './DeleteRowButton'
 
-export type LicRow = { provider_id: string; expiration_date: string | null; is_primary: boolean }
-export type IdRow  = { provider_id: string; identifier_type: string; effective_date: string | null }
+export type LicRow    = { provider_id: string; expiration_date: string | null; is_primary: boolean }
+export type IdRow     = { provider_id: string; identifier_type: string; effective_date: string | null }
+export type GroupLabel = { name: string; division_code: string | null }
 
 function credStatus(
   licRows: LicRow[],
@@ -49,11 +50,12 @@ function CredBadge({ status }: { status: 'expired' | 'expiring' | 'active' | 'no
 
 interface Props {
   providers: Provider[]
+  groupLabels?: Record<string, GroupLabel>
   initialLicenses: LicRow[]
   initialIdentifiers: IdRow[]
 }
 
-export default function ProviderList({ providers, initialLicenses, initialIdentifiers }: Props) {
+export default function ProviderList({ providers, groupLabels = {}, initialLicenses, initialIdentifiers }: Props) {
   const searchParams = useSearchParams()
   const [search,    setSearch]    = useState('')
   const [specialty, setSpecialty] = useState('')
@@ -183,6 +185,13 @@ export default function ProviderList({ providers, initialLicenses, initialIdenti
                   {p.credential_suffix && <span style={{ fontWeight: 400, color: '#64748b' }}> {p.credential_suffix}</span>}
                 </div>
                 {p.email && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>{p.email}</div>}
+                {groupLabels[p.id] && (
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
+                    {groupLabels[p.id].division_code
+                      ? `${groupLabels[p.id].division_code} | ${groupLabels[p.id].name}`
+                      : groupLabels[p.id].name}
+                  </div>
+                )}
                 {p.accepting_new_patients === false && (
                   <span style={{ fontSize: '10px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '1px 5px', borderRadius: '3px', marginTop: '2px', display: 'inline-block' }}>
                     Closed panel

@@ -1,8 +1,16 @@
 import Link from 'next/link'
 import { createClient } from '../lib/supabase-server'
 import type { Provider } from '../types'
-import ProviderList, { type LicRow, type IdRow } from '../components/ProviderList'
+import ProviderList, { type LicRow, type IdRow, type GroupLabel } from '../components/ProviderList'
 import EmptyState from '../components/EmptyState'
+
+type RawProvider = Provider & {
+  provider_group_locations: Array<{
+    is_primary: boolean
+    is_active: boolean
+    groups: { name: string; division_code: string | null } | null
+  }> | null
+}
 
 export default async function ProvidersPage() {
   const supabase = await createClient()
@@ -15,7 +23,10 @@ export default async function ProvidersPage() {
     { data: licenseRows },
     { data: identifierRows },
   ] = await Promise.all([
-    supabase.from('providers').select('*').order('last_name'),
+    supabase
+      .from('providers')
+      .select('*, provider_group_locations!left(is_primary, is_active, groups!left(name, division_code))')
+      .order('last_name'),
     supabase
       .from('provider_licenses')
       .select('provider_id, expiration_date, is_primary')
@@ -34,7 +45,19 @@ export default async function ProvidersPage() {
     )
   }
 
-  const list = (providers ?? []) as Provider[]
+  const raw = (providers ?? []) as RawProvider[]
+
+  const groupLabels: Record<string, GroupLabel> = {}
+  for (const p of raw) {
+    const assignments = p.provider_group_locations ?? []
+    const match =
+      assignments.find(a => a.is_primary && a.is_active && a.groups) ??
+      assignments.find(a => a.is_active && a.groups) ??
+      assignments.find(a => a.groups)
+    if (match?.groups) groupLabels[p.id] = match.groups
+  }
+
+  const list = raw as unknown as Provider[]
 
   return (
     <main className="page-xl">
@@ -49,6 +72,7 @@ export default async function ProvidersPage() {
       {list.length > 0 ? (
         <ProviderList
           providers={list}
+          groupLabels={groupLabels}
           initialLicenses={(licenseRows ?? []) as LicRow[]}
           initialIdentifiers={(identifierRows ?? []) as IdRow[]}
         />
