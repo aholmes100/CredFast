@@ -25,6 +25,12 @@ type EnrollmentRow = {
   approved_at: string | null
   effective_date: string | null
   organization_id: string | null
+  lob_commercial: boolean | null
+  lob_medicare: boolean | null
+  lob_medicaid: boolean | null
+  lob_marketplace: boolean | null
+  network_effective_date: string | null
+  network_termination_date: string | null
   payers: PayerDetail | null
 }
 
@@ -109,7 +115,13 @@ export default function EnrollmentDetailView({
   const [nextFollowUpDate,   setNextFollowUpDate]   = useState(toDateInput(enrollment.next_follow_up_date))
   const [submittedAt,        setSubmittedAt]        = useState(toDateInput(enrollment.submitted_at))
   const [approvedAt,         setApprovedAt]         = useState(toDateInput(enrollment.approved_at))
-  const [effectiveDate,      setEffectiveDate]      = useState(toDateInput(enrollment.effective_date))
+  const [effectiveDate,          setEffectiveDate]          = useState(toDateInput(enrollment.effective_date))
+  const [lobCommercial,          setLobCommercial]          = useState(enrollment.lob_commercial ?? false)
+  const [lobMedicare,            setLobMedicare]            = useState(enrollment.lob_medicare ?? false)
+  const [lobMedicaid,            setLobMedicaid]            = useState(enrollment.lob_medicaid ?? false)
+  const [lobMarketplace,         setLobMarketplace]         = useState(enrollment.lob_marketplace ?? false)
+  const [networkEffectiveDate,   setNetworkEffectiveDate]   = useState(toDateInput(enrollment.network_effective_date))
+  const [networkTerminationDate, setNetworkTerminationDate] = useState(toDateInput(enrollment.network_termination_date))
 
   const [saving,    setSaving]    = useState(false)
   const [saved,     setSaved]     = useState(false)
@@ -152,8 +164,14 @@ export default function EnrollmentDetailView({
         next_follow_up_date: nextFollowUpDate || null,
         submitted_at:        submittedAt || null,
         approved_at:         approvedAt || null,
-        effective_date:      effectiveDate || null,
-        updated_at:          new Date().toISOString(),
+        effective_date:           effectiveDate || null,
+        lob_commercial:           lobCommercial,
+        lob_medicare:             lobMedicare,
+        lob_medicaid:             lobMedicaid,
+        lob_marketplace:          lobMarketplace,
+        network_effective_date:   networkEffectiveDate || null,
+        network_termination_date: networkTerminationDate || null,
+        updated_at:               new Date().toISOString(),
       })
       .eq('id', enrollment.id)
     setSaving(false)
@@ -286,6 +304,38 @@ export default function EnrollmentDetailView({
               {saved     && <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 500 }}>✓ Saved</span>}
               {saveError && <span style={{ fontSize: '12px', color: '#dc2626' }}>⚠ {saveError}</span>}
               {isDirty && !saving && !saved && <span style={{ fontSize: '12px', color: '#94a3b8' }}>Unsaved changes</span>}
+            </div>
+          </div>
+
+          {/* Line of Business + Network Dates */}
+          <div className="card-lg">
+            <p className="section-label">Line of Business</p>
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {([
+                ['Commercial', lobCommercial, setLobCommercial],
+                ['Medicare',   lobMedicare,   setLobMedicare],
+                ['Medicaid',   lobMedicaid,   setLobMedicaid],
+                ['Marketplace',lobMarketplace,setLobMarketplace],
+              ] as [string, boolean, (v: boolean) => void][]).map(([label, checked, setter]) => (
+                <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={checked}
+                    onChange={e => { setter(e.target.checked); markDirty() }}
+                    style={{ accentColor: '#4f46e5', width: '15px', height: '15px' }} />
+                  <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label className="form-label">Network Effective Date</label>
+                <input className="form-input" type="date" value={networkEffectiveDate}
+                  onChange={e => { setNetworkEffectiveDate(e.target.value); markDirty() }} />
+              </div>
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label className="form-label">Network Termination Date</label>
+                <input className="form-input" type="date" value={networkTerminationDate}
+                  onChange={e => { setNetworkTerminationDate(e.target.value); markDirty() }} />
+              </div>
             </div>
           </div>
 

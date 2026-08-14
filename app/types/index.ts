@@ -68,6 +68,15 @@ export interface Provider {
   home_city: string | null
   home_state: string | null
   home_zip: string | null
+  // Clinical / administrative
+  credentialing_status: string | null
+  is_hospital_based: boolean | null
+  is_w2: boolean | null
+  supervising_physician_npi: string | null
+  supervising_physician_name: string | null
+  race: string | null
+  ethnicity: string | null
+  offers_telehealth: boolean | null
   // Misc
   notes: string | null
   created_at: string
@@ -149,6 +158,9 @@ export interface Location {
   panel_limits: string | null
   age_limits: string | null
   office_languages: string | null
+  telehealth: boolean | null
+  after_hours_phone: string | null
+  time_zone: string | null
   is_active: boolean
   notes: string | null
   created_at: string
@@ -366,6 +378,7 @@ export interface ProviderIdentifier {
   state: string | null
   identifier_value: string
   effective_date: string | null
+  expiration_date: string | null
   is_primary: boolean
   created_at: string
 }
@@ -549,6 +562,12 @@ export interface ProviderPayerEnrollment {
   created_at: string
   updated_at: string | null
   provider_type: string | null
+  lob_commercial: boolean | null
+  lob_medicare: boolean | null
+  lob_medicaid: boolean | null
+  lob_marketplace: boolean | null
+  network_effective_date: string | null
+  network_termination_date: string | null
 }
 
 export interface EnrollmentActivityLog {

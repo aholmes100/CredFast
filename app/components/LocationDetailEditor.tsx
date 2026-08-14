@@ -68,6 +68,9 @@ export default function LocationDetailEditor({ location }: Props) {
     panel_limits:     location.panel_limits ?? '',
     age_limits:       location.age_limits ?? '',
     office_languages: location.office_languages ?? '',
+    telehealth:         location.telehealth ?? false,
+    after_hours_phone:  location.after_hours_phone ?? '',
+    time_zone:          location.time_zone ?? '',
     // Booleans
     accepts_new_patients: location.accepts_new_patients ?? true,
     handicap_accessible:  location.handicap_accessible ?? false,
@@ -162,6 +165,9 @@ export default function LocationDetailEditor({ location }: Props) {
       panel_limits:         toNull(form.panel_limits),
       age_limits:           toNull(form.age_limits),
       office_languages:     toNull(form.office_languages),
+      telehealth:           form.telehealth,
+      after_hours_phone:    toNull(form.after_hours_phone),
+      time_zone:            toNull(form.time_zone),
       accepts_new_patients: form.accepts_new_patients,
       handicap_accessible:  form.handicap_accessible,
       accepts_medicaid:     form.accepts_medicaid,
@@ -292,7 +298,11 @@ export default function LocationDetailEditor({ location }: Props) {
             <input className="form-input" value={form.office_languages}
               onChange={e => set('office_languages', e.target.value)} placeholder="e.g. English, Spanish" />
           </div>
-          <div />
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Time Zone</label>
+            <input className="form-input" value={form.time_zone}
+              onChange={e => set('time_zone', e.target.value)} placeholder="e.g. America/Chicago" />
+          </div>
         </div>
       </div>
 
@@ -380,17 +390,25 @@ export default function LocationDetailEditor({ location }: Props) {
       {/* ── Contact ───────────────────────────────────────── */}
       <div className="card-lg" style={{ marginBottom: '12px' }}>
         <p className="section-label">Contact</p>
-        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
-          <div className="form-field" style={{ marginBottom: 0 }}>
+        <div className="form-row form-row-2">
+          <div className="form-field">
             <label className="form-label">Phone</label>
             <input className="form-input" type="tel" value={form.phone}
               onChange={e => set('phone', e.target.value)} placeholder="(555) 000-0000" />
           </div>
-          <div className="form-field" style={{ marginBottom: 0 }}>
+          <div className="form-field">
             <label className="form-label">Fax</label>
             <input className="form-input" type="tel" value={form.fax}
               onChange={e => set('fax', e.target.value)} placeholder="(555) 000-0000" />
           </div>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">After Hours Phone</label>
+            <input className="form-input" type="tel" value={form.after_hours_phone}
+              onChange={e => set('after_hours_phone', e.target.value)} placeholder="(555) 000-0000" />
+          </div>
+          <div />
         </div>
       </div>
 
@@ -419,6 +437,7 @@ export default function LocationDetailEditor({ location }: Props) {
           <CheckField checked={!!form.accepts_medicaid}     label="Accepts Medicaid"       onChange={v => set('accepts_medicaid', v)} />
           <CheckField checked={!!form.accepts_medicare}     label="Accepts Medicare"       onChange={v => set('accepts_medicare', v)} />
           <CheckField checked={!!form.handicap_accessible}  label="Handicap Accessible"    onChange={v => set('handicap_accessible', v)} />
+          <CheckField checked={!!form.telehealth}           label="Telehealth"             onChange={v => set('telehealth', v)} />
           <CheckField checked={!!form.is_active}            label="Location Active"        onChange={v => set('is_active', v)} />
         </div>
       </div>

@@ -24,6 +24,7 @@ type LicEditState = {
   license_number: string
   license_type: string
   status: string
+  issue_date: string
   expiration_date: string
   is_primary: boolean
 }
@@ -33,6 +34,7 @@ type IdEditState = {
   state: string
   identifier_value: string
   effective_date: string
+  expiration_date: string
 }
 
 function fmtDate(d: string | null | undefined) {
@@ -93,6 +95,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
     home_city:                provider.home_city ?? '',
     home_state:               provider.home_state ?? '',
     home_zip:                 provider.home_zip ?? '',
+    credentialing_status:       provider.credentialing_status ?? '',
+    is_hospital_based:          provider.is_hospital_based ?? false,
+    is_w2:                      provider.is_w2 ?? false,
+    supervising_physician_npi:  provider.supervising_physician_npi ?? '',
+    supervising_physician_name: provider.supervising_physician_name ?? '',
+    race:                       provider.race ?? '',
+    ethnicity:                  provider.ethnicity ?? '',
+    offers_telehealth:          provider.offers_telehealth ?? false,
     notes:                    provider.notes ?? '',
   })
 
@@ -175,6 +185,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       home_city:                toNull(form.home_city),
       home_state:               toNull(form.home_state),
       home_zip:                 toNull(form.home_zip),
+      credentialing_status:       toNull(form.credentialing_status),
+      is_hospital_based:          form.is_hospital_based,
+      is_w2:                      form.is_w2,
+      supervising_physician_npi:  toNull(form.supervising_physician_npi),
+      supervising_physician_name: toNull(form.supervising_physician_name),
+      race:                       toNull(form.race),
+      ethnicity:                  toNull(form.ethnicity),
+      offers_telehealth:          form.offers_telehealth,
       notes:                    toNull(form.notes),
       updated_at:               new Date().toISOString(),
     }).eq('id', provider.id)
@@ -207,6 +225,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       license_number:  licEdit.license_number.trim(),
       license_type:    licEdit.license_type.trim(),
       status:          licEdit.status,
+      issue_date:      licEdit.issue_date || null,
       expiration_date: licEdit.expiration_date || null,
       is_primary:      licEdit.is_primary,
     }
@@ -259,6 +278,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
       state:            edit.state || null,
       identifier_value: edit.identifier_value.trim(),
       effective_date:   edit.effective_date || null,
+      expiration_date:  edit.expiration_date || null,
       is_primary:       false,
     }
     if (edit.id === 'new') {
@@ -303,7 +323,11 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
         value={licEdit!.license_type}
         onChange={e => setLicEdit({ ...licEdit!, license_type: e.target.value })}
         style={{ width: '110px' }} />
-      <input className="form-input" type="date"
+      <input className="form-input" type="date" title="Issue date"
+        value={licEdit!.issue_date}
+        onChange={e => setLicEdit({ ...licEdit!, issue_date: e.target.value })}
+        style={{ width: '140px' }} />
+      <input className="form-input" type="date" title="Expiration date"
         value={licEdit!.expiration_date}
         onChange={e => setLicEdit({ ...licEdit!, expiration_date: e.target.value })}
         style={{ width: '140px' }} />
@@ -337,7 +361,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
   function renderIdentifierSection(
     type: 'dea' | 'medicaid' | 'medicare',
     title: string,
-    showDate: boolean,
+    showExpiration: boolean,
     edit: IdEditState | null,
     setEdit: (v: IdEditState | null) => void
   ) {
@@ -357,10 +381,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
           value={edit!.identifier_value}
           onChange={e => setEdit({ ...edit!, identifier_value: e.target.value })}
           style={{ flex: 1, minWidth: '120px' }} />
-        {showDate && (
-          <input className="form-input" type="date"
-            value={edit!.effective_date}
-            onChange={e => setEdit({ ...edit!, effective_date: e.target.value })}
+        <input className="form-input" type="date" title="Effective date"
+          value={edit!.effective_date}
+          onChange={e => setEdit({ ...edit!, effective_date: e.target.value })}
+          style={{ width: '140px' }} />
+        {showExpiration && (
+          <input className="form-input" type="date" title="Expiration date"
+            value={edit!.expiration_date}
+            onChange={e => setEdit({ ...edit!, expiration_date: e.target.value })}
             style={{ width: '140px' }} />
         )}
         <button onClick={() => handleSaveIdentifier(type, edit!, setEdit)} disabled={rowSaving}
@@ -381,7 +409,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             {title}
           </span>
           <button
-            onClick={() => setEdit({ id: 'new', state: '', identifier_value: '', effective_date: '' })}
+            onClick={() => setEdit({ id: 'new', state: '', identifier_value: '', effective_date: '', expiration_date: '' })}
             disabled={anyEditing}
             style={{ fontSize: '12px', color: anyEditing ? '#c7d2fe' : '#4f46e5', background: 'none', border: 'none', cursor: anyEditing ? 'default' : 'pointer', fontWeight: 500, padding: 0 }}>
             + Add
@@ -403,11 +431,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
                   )}
                   <span style={{ fontSize: '13px', fontWeight: 500, color: '#0f172a' }}>{row.identifier_value}</span>
                 </div>
-                {showDate && row.effective_date && (
+                {row.effective_date && (
                   <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDate(row.effective_date)}</span>
                 )}
+                {showExpiration && row.expiration_date && (
+                  <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>exp {fmtDate(row.expiration_date)}</span>
+                )}
                 <button
-                  onClick={() => setEdit({ id: row.id, state: row.state ?? '', identifier_value: row.identifier_value, effective_date: row.effective_date ?? '' })}
+                  onClick={() => setEdit({ id: row.id, state: row.state ?? '', identifier_value: row.identifier_value, effective_date: row.effective_date ?? '', expiration_date: row.expiration_date ?? '' })}
                   disabled={anyEditing}
                   style={{ fontSize: '12px', color: anyEditing ? '#c7d2fe' : '#4f46e5', background: 'none', border: 'none', cursor: anyEditing ? 'default' : 'pointer', padding: '2px 4px', flexShrink: 0 }}>
                   Edit
@@ -469,6 +500,20 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
         </div>
         <div className="form-row form-row-2">
           <div className="form-field">
+            <label className="form-label">Credentialing Status</label>
+            <select className="form-select" value={form.credentialing_status}
+              onChange={(e) => set('credentialing_status', e.target.value)}>
+              <option value="">Select</option>
+              <option value="Initial">Initial</option>
+              <option value="Re-credentialing">Re-credentialing</option>
+              <option value="Pending">Pending</option>
+              <option value="Complete">Complete</option>
+            </select>
+          </div>
+          <div />
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-field">
             <label className="form-label">Date of Birth</label>
             <input className="form-input" type="date" value={form.date_of_birth}
               onChange={(e) => set('date_of_birth', e.target.value)} />
@@ -502,6 +547,14 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
               onChange={(e) => set('accepting_new_patients', e.target.checked)}
               style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
             <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Accepting New Patients</span>
+          </label>
+        </div>
+        <div className="form-field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.is_w2}
+              onChange={(e) => set('is_w2', e.target.checked)}
+              style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
+            <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>W2 Employee</span>
           </label>
         </div>
         <div className="form-row form-row-2">
@@ -605,6 +658,34 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             </label>
           </div>
         </div>
+        <div className="form-field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.is_hospital_based}
+              onChange={(e) => set('is_hospital_based', e.target.checked)}
+              style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
+            <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Hospital Based</span>
+          </label>
+        </div>
+        <div className="form-field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.offers_telehealth}
+              onChange={(e) => set('offers_telehealth', e.target.checked)}
+              style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
+            <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Offers Telehealth</span>
+          </label>
+        </div>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Supervising Physician Name</label>
+            <input className="form-input" value={form.supervising_physician_name}
+              onChange={(e) => set('supervising_physician_name', e.target.value)} placeholder="Full name" />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Supervising Physician NPI</label>
+            <input className="form-input" value={form.supervising_physician_npi}
+              onChange={(e) => set('supervising_physician_npi', e.target.value)} placeholder="10-digit NPI" />
+          </div>
+        </div>
       </div>
 
       {/* ── License & Credentials ────────────────────────── */}
@@ -632,7 +713,7 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
               Medical Licenses
             </span>
             <button
-              onClick={() => setLicEdit({ id: 'new', state: '', license_number: '', license_type: '', status: 'Active', expiration_date: '', is_primary: false })}
+              onClick={() => setLicEdit({ id: 'new', state: '', license_number: '', license_type: '', status: 'Active', issue_date: '', expiration_date: '', is_primary: false })}
               disabled={anyEdit}
               style={{ fontSize: '12px', color: anyEdit ? '#c7d2fe' : '#4f46e5', background: 'none', border: 'none', cursor: anyEdit ? 'default' : 'pointer', fontWeight: 500, padding: 0 }}>
               + Add
@@ -659,14 +740,18 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
                       <span style={{ fontSize: '11px', color: '#64748b' }}>{lic.license_type}</span>
                     )}
                   </div>
-                  {lic.expiration_date && (
-                    <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDate(lic.expiration_date)}</span>
+                  {(lic.issue_date || lic.expiration_date) && (
+                    <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                      {lic.issue_date ? fmtDate(lic.issue_date) : ''}
+                      {lic.issue_date && lic.expiration_date ? ' – ' : ''}
+                      {lic.expiration_date ? fmtDate(lic.expiration_date) : ''}
+                    </span>
                   )}
                   <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', backgroundColor: lic.status === 'Active' ? '#f0fdf4' : '#fef2f2', color: lic.status === 'Active' ? '#15803d' : '#b91c1c' }}>
                     {lic.status}
                   </span>
                   <button
-                    onClick={() => setLicEdit({ id: lic.id, state: lic.state, license_number: lic.license_number, license_type: lic.license_type ?? '', status: lic.status, expiration_date: lic.expiration_date ?? '', is_primary: lic.is_primary })}
+                    onClick={() => setLicEdit({ id: lic.id, state: lic.state, license_number: lic.license_number, license_type: lic.license_type ?? '', status: lic.status, issue_date: lic.issue_date ?? '', expiration_date: lic.expiration_date ?? '', is_primary: lic.is_primary })}
                     disabled={anyEdit}
                     style={{ fontSize: '12px', color: anyEdit ? '#c7d2fe' : '#4f46e5', background: 'none', border: 'none', cursor: anyEdit ? 'default' : 'pointer', padding: '2px 4px', flexShrink: 0 }}>
                     Edit
@@ -860,6 +945,23 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Demographics ─────────────────────────────────── */}
+      <div className="card-lg" style={{ marginBottom: '12px' }}>
+        <p className="section-label">Demographics</p>
+        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Race</label>
+            <input className="form-input" value={form.race}
+              onChange={(e) => set('race', e.target.value)} placeholder="e.g. White, Black or African American" />
+          </div>
+          <div className="form-field" style={{ marginBottom: 0 }}>
+            <label className="form-label">Ethnicity</label>
+            <input className="form-input" value={form.ethnicity}
+              onChange={(e) => set('ethnicity', e.target.value)} placeholder="e.g. Hispanic or Latino" />
+          </div>
+        </div>
       </div>
 
       {/* ── Notes ────────────────────────────────────────── */}
