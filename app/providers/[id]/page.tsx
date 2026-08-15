@@ -161,9 +161,19 @@ export default async function ProviderDetailPage({
                 { label: 'Email',         value: provider.email },
                 { label: 'Date of Birth', value: fmtDate(provider.date_of_birth) },
               ].map(({ label, value }) => (
-                <dl key={label} className="data-item">
+                <dl key={label} className="data-item" style={{ minWidth: 0 }}>
                   <dt>{label}</dt>
-                  <dd style={{ color: value && value !== '—' ? '#0f172a' : '#94a3b8' }}>{value || '—'}</dd>
+                  <dd
+                    title={value || '—'}
+                    style={{
+                      color: value && value !== '—' ? '#0f172a' : '#94a3b8',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {value || '—'}
+                  </dd>
                 </dl>
               ))}
             </div>
