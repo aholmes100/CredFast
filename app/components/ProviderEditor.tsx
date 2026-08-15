@@ -649,8 +649,8 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             <input className="form-input" value={form.hospital_affiliation}
               onChange={(e) => set('hospital_affiliation', e.target.value)} placeholder="Primary hospital name" />
           </div>
-          <div className="form-field" style={{ marginBottom: 0 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginTop: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
               <input type="checkbox" checked={form.is_pcp}
                 onChange={(e) => set('is_pcp', e.target.checked)}
                 style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
@@ -658,15 +658,13 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             </label>
           </div>
         </div>
-        <div className="form-field">
+        <div style={{ display: 'flex', gap: '32px', marginTop: '8px', marginBottom: '12px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.is_hospital_based}
               onChange={(e) => set('is_hospital_based', e.target.checked)}
               style={{ accentColor: '#4f46e5', width: '16px', height: '16px' }} />
             <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Hospital Based</span>
           </label>
-        </div>
-        <div className="form-field">
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.offers_telehealth}
               onChange={(e) => set('offers_telehealth', e.target.checked)}
@@ -674,18 +672,20 @@ export default function ProviderEditor({ provider, orgId, initialLicenses, initi
             <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>Offers Telehealth</span>
           </label>
         </div>
-        <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
-          <div className="form-field" style={{ marginBottom: 0 }}>
-            <label className="form-label">Supervising Physician Name</label>
-            <input className="form-input" value={form.supervising_physician_name}
-              onChange={(e) => set('supervising_physician_name', e.target.value)} placeholder="Full name" />
+        {['NP', 'PA', 'LCSW', 'MSW', 'MSN', 'CNM', 'CRNA'].includes(form.degree ?? '') && (
+          <div className="form-row form-row-2" style={{ marginBottom: 0 }}>
+            <div className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label">Supervising Physician Name</label>
+              <input className="form-input" value={form.supervising_physician_name}
+                onChange={(e) => set('supervising_physician_name', e.target.value)} placeholder="Full name" />
+            </div>
+            <div className="form-field" style={{ marginBottom: 0 }}>
+              <label className="form-label">Supervising Physician NPI</label>
+              <input className="form-input" value={form.supervising_physician_npi}
+                onChange={(e) => set('supervising_physician_npi', e.target.value)} placeholder="10-digit NPI" />
+            </div>
           </div>
-          <div className="form-field" style={{ marginBottom: 0 }}>
-            <label className="form-label">Supervising Physician NPI</label>
-            <input className="form-input" value={form.supervising_physician_npi}
-              onChange={(e) => set('supervising_physician_npi', e.target.value)} placeholder="10-digit NPI" />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ── License & Credentials ────────────────────────── */}
