@@ -159,7 +159,6 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
 
       {/* Footer */}
       <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-        <div style={{ fontSize: '11px', color: '#64748B', marginBottom: '8px' }}>Pollux Internal</div>
         <button
           onClick={handleLogout}
           style={{
