@@ -52,8 +52,8 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
       style={{
         width: '210px',
         minWidth: '210px',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid #e2e8f0',
+        backgroundColor: '#0D1B2A',
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
@@ -64,11 +64,11 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
       }}
     >
       {/* Logo */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', letterSpacing: '-0.02em' }}>
-              CredFast
+            <div style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.02em' }}>
+              <span style={{ color: '#ffffff' }}>Cred</span><span style={{ color: '#14B8A6' }}>Fast</span>
             </div>
             <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Enrollment Platform
@@ -100,21 +100,21 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
                     borderRadius: '6px',
                     fontSize: '13px',
                     fontWeight: isActive ? 600 : 400,
-                    color: isActive ? '#4f46e5' : '#475569',
-                    backgroundColor: isActive ? '#eef2ff' : 'transparent',
+                    color: isActive ? '#14B8A6' : '#94A3B8',
+                    backgroundColor: isActive ? 'rgba(20,184,166,0.15)' : 'transparent',
                     textDecoration: 'none',
                     transition: 'background-color 0.1s, color 0.1s',
                   }}
                   onMouseEnter={(e) => {
                     if (!isActive) {
-                      e.currentTarget.style.backgroundColor = '#f8fafc'
-                      e.currentTarget.style.color = '#0f172a'
+                      e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
+                      e.currentTarget.style.color = '#CBD5E1'
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive) {
                       e.currentTarget.style.backgroundColor = 'transparent'
-                      e.currentTarget.style.color = '#475569'
+                      e.currentTarget.style.color = '#94A3B8'
                     }
                   }}
                 >
@@ -127,7 +127,7 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
       </nav>
 
       {/* Settings + Billing */}
-      <div style={{ padding: '8px 8px 4px', borderTop: '1px solid #e2e8f0' }}>
+      <div style={{ padding: '8px 8px 4px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         {[
           { href: '/settings', label: 'Settings' },
           { href: '/billing',  label: 'Billing'  },
@@ -144,12 +144,12 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
                 borderRadius: '6px',
                 fontSize: '13px',
                 fontWeight: isActive ? 600 : 400,
-                color: isActive ? '#4f46e5' : '#475569',
-                backgroundColor: isActive ? '#eef2ff' : 'transparent',
+                color: isActive ? '#14B8A6' : '#94A3B8',
+                backgroundColor: isActive ? 'rgba(20,184,166,0.15)' : 'transparent',
                 textDecoration: 'none',
               }}
-              onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.color = '#0f172a' } }}
-              onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#475569' } }}
+              onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#CBD5E1' } }}
+              onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94A3B8' } }}
             >
               {label}
             </Link>
@@ -158,17 +158,17 @@ export default function Sidebar({ initialNotifications }: SidebarProps) {
       </div>
 
       {/* Footer */}
-      <div style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
-        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>Pollux Internal</div>
+      <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+        <div style={{ fontSize: '11px', color: '#64748B', marginBottom: '8px' }}>Pollux Internal</div>
         <button
           onClick={handleLogout}
           style={{
             width: '100%',
             padding: '6px 10px',
             fontSize: '12px',
-            color: '#64748b',
+            color: '#94A3B8',
             backgroundColor: 'transparent',
-            border: '1px solid #e2e8f0',
+            border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '5px',
             cursor: 'pointer',
             textAlign: 'left',
